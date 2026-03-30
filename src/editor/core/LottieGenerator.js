@@ -68,19 +68,25 @@ export class LottieGenerator {
     }
 
     buildTransform(layerId, obj, anchorX = 0, anchorY = 0) {
+        // Lottie anchor must be in unscaled local coords
+        const sx = obj.scaleX || 1;
+        const sy = obj.scaleY || 1;
+        const localAnchorX = anchorX / sx;
+        const localAnchorY = anchorY / sy;
+
         return {
             o: this.buildAnimatedValue(layerId, 'opacity', (obj.opacity ?? 1) * 100, 100),
             r: this.buildAnimatedValue(layerId, 'angle', obj.angle || 0),
             p: this.buildAnimatedMultiComponent(layerId,
                 [{ prop: 'left', static: obj.left || 0, offset: anchorX },
                  { prop: 'top', static: obj.top || 0, offset: anchorY }],
-                [0] // trailing z
+                [0]
             ),
-            a: { a: 0, k: [anchorX, anchorY, 0] },
+            a: { a: 0, k: [localAnchorX, localAnchorY, 0] },
             s: this.buildAnimatedMultiComponent(layerId,
                 [{ prop: 'scaleX', static: obj.scaleX || 1, scale: 100 },
                  { prop: 'scaleY', static: obj.scaleY || 1, scale: 100 }],
-                [100] // trailing z scale
+                [100]
             ),
         };
     }

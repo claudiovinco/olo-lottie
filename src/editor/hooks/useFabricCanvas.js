@@ -48,9 +48,8 @@ export default function useFabricCanvas({
             };
         }
 
-        // Get anchor world position for a layer using Fabric's transform matrix
+        // Get anchor world position using Fabric's getCenterPoint()
         // Anchor is stored in SCALED coords relative to object top-left
-        // calcTransformMatrix() expects UNSCALED center-relative coords
         function getAnchorWorld(layer) {
             const obj = layer.fabricObject;
             if (!obj) return null;
@@ -58,40 +57,49 @@ export default function useFabricCanvas({
             const ay = layer.anchorY || 0;
             const sx = obj.scaleX || 1;
             const sy = obj.scaleY || 1;
-            const cx = (obj.width || 0) / 2;
-            const cy = (obj.height || 0) / 2;
-            // Convert: scaled-top-left-relative -> unscaled-center-relative
-            const localX = ax / sx - cx;
-            const localY = ay / sy - cy;
-            const matrix = obj.calcTransformMatrix();
-            return {
-                x: matrix[0] * localX + matrix[2] * localY + matrix[4],
-                y: matrix[1] * localX + matrix[3] * localY + matrix[5],
-            };
+            const w = obj.width || 0;
+            const h = obj.height || 0;
+
+            // Offset from center in scaled coords
+            const cx = ax - w * sx / 2;
+            const cy = ay - h * sy / 2;
+
+            // Rotate offset by object angle
+            const rad = ((obj.angle || 0) * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const rx = cx * cos - cy * sin;
+            const ry = cx * sin + cy * cos;
+
+            // Add rotated offset to world center
+            const center = obj.getCenterPoint();
+            return { x: center.x + rx, y: center.y + ry };
         }
 
         // Inverse: convert world pointer to local anchor coords (scaled, top-left-relative)
         function worldToAnchor(obj, worldX, worldY) {
-            const matrix = obj.calcTransformMatrix();
-            const a = matrix[0], b = matrix[1], c = matrix[2], d = matrix[3];
-            const e = matrix[4], f = matrix[5];
-            const det = a * d - b * c;
-            if (Math.abs(det) < 1e-6) return { x: 0, y: 0 };
-            // World -> unscaled center-relative
-            const localX = (d * (worldX - e) - c * (worldY - f)) / det;
-            const localY = (-b * (worldX - e) + a * (worldY - f)) / det;
-            // Unscaled center-relative -> scaled top-left-relative
-            const cx = (obj.width || 0) / 2;
-            const cy = (obj.height || 0) / 2;
+            const center = obj.getCenterPoint();
+            const dx = worldX - center.x;
+            const dy = worldY - center.y;
+
+            // Un-rotate
+            const rad = -((obj.angle || 0) * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const localX = dx * cos - dy * sin;
+            const localY = dx * sin + dy * cos;
+
+            // Center-relative -> top-left-relative (scaled)
             const sx = obj.scaleX || 1;
             const sy = obj.scaleY || 1;
-            return { x: (localX + cx) * sx, y: (localY + cy) * sy };
+            const w = obj.width || 0;
+            const h = obj.height || 0;
+            return { x: localX + w * sx / 2, y: localY + h * sy / 2 };
         }
 
         // Get object center in world coords
         function getCenterWorld(obj) {
-            const matrix = obj.calcTransformMatrix();
-            return { x: matrix[4], y: matrix[5] };
+            return obj.getCenterPoint();
         }
 
         const drawBones = () => {

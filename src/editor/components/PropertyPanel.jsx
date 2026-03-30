@@ -111,6 +111,9 @@ export default function PropertyPanel() {
             if (lockScale) obj.set('scaleX', value / 100);
         } else if (key === 'opacity') {
             obj.set('opacity', value / 100);
+        } else if (key === 'rx') {
+            obj.set('rx', value);
+            obj.set('ry', value);
         } else {
             obj.set(key, value);
         }
