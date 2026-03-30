@@ -14,22 +14,13 @@ class Olo_Lottie_Admin {
     }
 
     public function add_menu() {
-        // SVG icon for WP admin menu (green OLO logo, simplified)
-        $icon_svg = 'data:image/svg+xml;base64,' . base64_encode(
-            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
-            . '<circle cx="22" cy="40" r="20" fill="#95c11f"/><circle cx="22" cy="40" r="9" fill="white"/>'
-            . '<path d="M45 15 L50 25 L55 15 L55 65 L45 65 Z" fill="#95c11f"/>'
-            . '<circle cx="78" cy="40" r="20" fill="#95c11f"/><circle cx="78" cy="40" r="9" fill="white"/>'
-            . '</svg>'
-        );
-
         add_menu_page(
             __('Olo Lottie Editor', 'olo-lottie'),
             __('Olo Lottie', 'olo-lottie'),
             'manage_options',
             'olo-lottie-editor',
             [$this, 'render_editor_page'],
-            $icon_svg,
+            OLO_LOTTIE_URL . 'assets/img/logo-20.png',
             30
         );
 
