@@ -186,7 +186,7 @@ export class LottieGenerator {
     }
 
     convertShape(layerId, obj) {
-        const type = obj.type;
+        const type = obj._oloLayerType || obj.type;
         const group = {
             ty: 'gr', it: [], nm: 'Shape Group',
             np: 3, cix: 2, bm: 0, ix: 1, mn: 'ADBE Vector Group',
@@ -196,9 +196,11 @@ export class LottieGenerator {
             group.it.push(this.makeRect(obj));
         } else if (type === 'circle' || type === 'ellipse') {
             group.it.push(this.makeEllipse(obj));
+        } else if (type === 'line') {
+            group.it.push(this.makeLine(obj));
         } else if (type === 'path') {
             group.it.push(this.makePath(obj));
-        } else if (type === 'polygon' && obj.points) {
+        } else if ((type === 'polygon' || type === 'triangle' || type === 'star') && obj.points) {
             group.it.push(this.makePolygonPath(obj));
         } else {
             if (obj.path) group.it.push(this.makePath(obj));
@@ -206,7 +208,10 @@ export class LottieGenerator {
             else group.it.push(this.makeRect(obj));
         }
 
-        if (obj.fill && obj.fill !== 'transparent' && obj.fill !== '') {
+        // Lines and arrows only have stroke, no fill
+        const noFillTypes = ['line', 'arrow'];
+        const hasFill = !noFillTypes.includes(type) && obj.fill && obj.fill !== 'transparent' && obj.fill !== '';
+        if (hasFill) {
             group.it.push(this.makeFill(layerId, obj));
         }
         if (obj.stroke && obj.stroke !== 'transparent' && obj.stroke !== '') {
@@ -227,6 +232,20 @@ export class LottieGenerator {
         const w = obj.width || 0;
         const h = obj.height || 0;
         return { ty: 'rc', d: 1, s: { a: 0, k: [w, h] }, p: { a: 0, k: [w / 2, h / 2] }, r: { a: 0, k: obj.rx || 0 }, nm: 'Rectangle' };
+    }
+
+    makeLine(obj) {
+        // Line as a path from (0,0) to (width, height) in local coords
+        const w = obj.width || 0;
+        const h = obj.height || 0;
+        const vertices = [[0, 0], [w, h]];
+        return {
+            ty: 'sh', d: 1, ks: { a: 0, k: {
+                i: [[0, 0], [0, 0]],
+                o: [[0, 0], [0, 0]],
+                v: vertices, c: false,
+            }}, nm: 'Line',
+        };
     }
 
     makeEllipse(obj) {
