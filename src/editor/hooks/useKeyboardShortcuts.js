@@ -11,6 +11,7 @@ function isEditableTarget(target) {
 export default function useKeyboardShortcuts({
   dispatch,
   keyframeManager,
+  fabricCanvasRef,
   onSave,
   onUndo,
   onRedo,
@@ -61,15 +62,13 @@ export default function useKeyboardShortcuts({
         case 'Backspace':
           if (state?.selectedLayerId) {
             const layerId = state.selectedLayerId;
-            keyframeManager?.removeAllKeyframes?.(layerId);
-            const canvas = state?.canvas;
-            if (canvas) {
-              const obj = canvas.getObjects().find((o) => o.layerId === layerId);
-              if (obj) {
-                canvas.remove(obj);
-                canvas.requestRenderAll();
-              }
+            const layer = state.layers?.find(l => l.id === layerId);
+            const canvas = fabricCanvasRef?.current;
+            if (canvas && layer?.fabricObject) {
+              canvas.remove(layer.fabricObject);
+              canvas.requestRenderAll();
             }
+            keyframeManager?.removeAllKeyframes?.(layerId);
             dispatch({ type: 'REMOVE_LAYER', payload: layerId });
           }
           return;
@@ -115,5 +114,5 @@ export default function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [dispatch, keyframeManager, onSave, onUndo, onRedo, state]);
+  }, [dispatch, keyframeManager, fabricCanvasRef, onSave, onUndo, onRedo, state]);
 }
