@@ -1,0 +1,588 @@
+/* Olo Lottie Editor - Main Layout */
+#olo-lottie-editor {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 32px);
+    width: 100%;
+    max-width: 100%;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+#olo-lottie-editor.olo-lottie-wrap {
+    margin: 0;
+}
+
+/* Top Bar */
+.olo-lottie-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    padding: 0 16px;
+    background: #181825;
+    border-bottom: 1px solid #313244;
+    flex-shrink: 0;
+}
+
+.olo-lottie-topbar__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.olo-lottie-topbar__title input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #cdd6f4;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.olo-lottie-topbar__title input:hover,
+.olo-lottie-topbar__title input:focus {
+    border-color: #45475a;
+    outline: none;
+}
+
+.olo-lottie-topbar__actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.olo-lottie-btn {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.olo-lottie-btn--primary {
+    background: #89b4fa;
+    color: #1e1e2e;
+}
+
+.olo-lottie-btn--primary:hover {
+    background: #74c7ec;
+}
+
+.olo-lottie-btn--secondary {
+    background: #313244;
+    color: #cdd6f4;
+}
+
+.olo-lottie-btn--secondary:hover {
+    background: #45475a;
+}
+
+/* ==========================================
+   MAIN CONTENT: sidebar fisse, canvas flessibile
+   ========================================== */
+.olo-lottie-main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Toolbar (left) - FIXED */
+.olo-lottie-toolbar {
+    display: flex;
+    flex-direction: column;
+    width: 48px;
+    min-width: 48px;
+    background: #181825;
+    border-right: 1px solid #313244;
+    padding: 8px 0;
+    flex-shrink: 0;
+    z-index: 5;
+}
+
+.olo-lottie-tool {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: #6c7086;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+}
+
+.olo-lottie-tool:hover {
+    color: #cdd6f4;
+    background: #313244;
+}
+
+.olo-lottie-tool--active {
+    color: #89b4fa;
+    background: #313244;
+}
+
+.olo-lottie-tool svg {
+    width: 20px;
+    height: 20px;
+}
+
+.olo-lottie-tool__tooltip {
+    display: none;
+    position: absolute;
+    left: 52px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #45475a;
+    color: #cdd6f4;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 100;
+}
+
+.olo-lottie-tool:hover .olo-lottie-tool__tooltip {
+    display: block;
+}
+
+/* Layer Panel (left sidebar) - FIXED */
+.olo-lottie-layers {
+    width: 170px;
+    min-width: 170px;
+    background: #1e1e2e;
+    border-right: 1px solid #313244;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 4;
+}
+
+.olo-lottie-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #313244;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a6adc8;
+}
+
+.olo-lottie-panel__header button {
+    background: transparent;
+    border: none;
+    color: #6c7086;
+    cursor: pointer;
+    padding: 2px;
+}
+
+.olo-lottie-panel__header button:hover {
+    color: #cdd6f4;
+}
+
+.olo-lottie-layers__list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.olo-lottie-layer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.olo-lottie-layer:hover {
+    background: #313244;
+}
+
+.olo-lottie-layer--selected {
+    background: #313244;
+    outline: 1px solid #89b4fa;
+}
+
+.olo-lottie-layer__color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.olo-lottie-layer__name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.olo-lottie-layer__actions {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.olo-lottie-layer__actions button {
+    background: transparent;
+    border: none;
+    color: #6c7086;
+    cursor: pointer;
+    padding: 2px;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.olo-lottie-layer__actions button:hover {
+    color: #cdd6f4;
+}
+
+/* Canvas Area (center) - FLEXIBLE, absorbs all space changes */
+.olo-lottie-canvas-area {
+    flex: 1 1 0%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    min-width: 100px;
+}
+
+.olo-lottie-canvas-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    background: #11111b;
+    position: relative;
+    min-height: 0;
+}
+
+.olo-lottie-canvas-wrapper {
+    position: relative;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    flex-shrink: 0;
+}
+
+.olo-lottie-canvas-wrapper canvas {
+    display: block;
+}
+
+/* Property Panel (right sidebar) - FIXED */
+.olo-lottie-properties {
+    width: 190px;
+    min-width: 190px;
+    background: #1e1e2e;
+    border-left: 1px solid #313244;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 4;
+}
+
+.olo-lottie-prop-group {
+    padding: 8px 10px;
+    border-bottom: 1px solid #313244;
+}
+
+.olo-lottie-prop-group__title {
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #a6adc8;
+    margin-bottom: 6px;
+}
+
+.olo-lottie-prop-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.olo-lottie-prop-row label {
+    width: 18px;
+    font-size: 10px;
+    color: #6c7086;
+    flex-shrink: 0;
+}
+
+.olo-lottie-prop-row input[type="number"],
+.olo-lottie-prop-row input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    background: #313244;
+    border: 1px solid #45475a;
+    color: #cdd6f4;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+    height: 22px;
+}
+
+.olo-lottie-prop-row input[type="number"]:focus,
+.olo-lottie-prop-row input[type="text"]:focus {
+    outline: none;
+    border-color: #89b4fa;
+}
+
+.olo-lottie-prop-row input[type="color"] {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    border: 1px solid #45475a;
+    border-radius: 3px;
+    padding: 1px;
+    background: #313244;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.olo-lottie-prop-row input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    height: 14px;
+}
+
+/* Keyframe button in property panel */
+.olo-lottie-keyframe-btn {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    flex-shrink: 0;
+    font-size: 11px;
+    line-height: 16px;
+    text-align: center;
+    color: #6c7086;
+}
+
+.olo-lottie-keyframe-btn::after {
+    content: '\25C7';
+}
+
+.olo-lottie-keyframe-btn:hover {
+    color: #f9e2af;
+}
+
+.olo-lottie-keyframe-btn--active {
+    color: #f9e2af;
+}
+
+.olo-lottie-keyframe-btn--active::after {
+    content: '\25C6';
+}
+
+/* ==========================================
+   TIMELINE (bottom) - FIXED height
+   ========================================== */
+.olo-lottie-timeline {
+    height: 180px;
+    min-height: 180px;
+    background: #181825;
+    border-top: 1px solid #313244;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.olo-lottie-timeline__controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid #313244;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.olo-lottie-timeline__controls button {
+    background: transparent;
+    border: none;
+    color: #6c7086;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.olo-lottie-timeline__controls button:hover {
+    color: #cdd6f4;
+    background: #313244;
+}
+
+.olo-lottie-timeline__controls button.playing {
+    color: #a6e3a1;
+}
+
+.olo-lottie-timeline__time {
+    font-size: 11px;
+    color: #a6adc8;
+    font-family: monospace;
+    min-width: 80px;
+}
+
+.olo-lottie-timeline__content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.olo-lottie-timeline__labels {
+    width: 140px;
+    min-width: 140px;
+    flex-shrink: 0;
+    border-right: 1px solid #313244;
+    overflow-y: auto;
+}
+
+.olo-lottie-timeline__label {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 11px;
+    border-bottom: 1px solid #1e1e2e;
+    color: #a6adc8;
+    cursor: pointer;
+}
+
+.olo-lottie-timeline__label:hover {
+    background: #1e1e2e;
+}
+
+/* Timeline tracks: ONLY area that scrolls horizontally */
+.olo-lottie-timeline__tracks {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+    min-width: 0;
+}
+
+.olo-lottie-timeline__ruler {
+    height: 24px;
+    background: #1e1e2e;
+    border-bottom: 1px solid #313244;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.olo-lottie-timeline__track {
+    height: 28px;
+    border-bottom: 1px solid #1e1e2e;
+    position: relative;
+}
+
+.olo-lottie-timeline__track:hover {
+    background: rgba(69, 71, 90, 0.3);
+}
+
+.olo-lottie-keyframe {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #f9e2af;
+    border: 1px solid #fab387;
+    border-radius: 2px;
+    transform: rotate(45deg) translate(-50%, -50%);
+    top: 50%;
+    cursor: pointer;
+    z-index: 1;
+}
+
+.olo-lottie-keyframe:hover {
+    background: #fab387;
+    transform: rotate(45deg) translate(-50%, -50%) scale(1.2);
+}
+
+.olo-lottie-keyframe--selected {
+    background: #89b4fa;
+    border-color: #74c7ec;
+}
+
+.olo-lottie-timeline__playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #f38ba8;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.olo-lottie-timeline__playhead::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -5px;
+    width: 12px;
+    height: 12px;
+    background: #f38ba8;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+/* Preview Panel */
+.olo-lottie-preview-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: #1e1e2e;
+    border-bottom: 1px solid #313244;
+    font-size: 11px;
+    color: #a6adc8;
+    user-select: none;
+}
+
+/* Toast animation */
+@keyframes olo-toast-in {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Scrollbars */
+.olo-lottie-wrap ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.olo-lottie-wrap ::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.olo-lottie-wrap ::-webkit-scrollbar-thumb {
+    background: #45475a;
+    border-radius: 3px;
+}
+
+.olo-lottie-wrap ::-webkit-scrollbar-thumb:hover {
+    background: #585b70;
+}
