@@ -48,22 +48,46 @@ export default function useFabricCanvas({
             };
         }
 
-        // Get anchor world position for a layer
+        // Get anchor world position for a layer (accounts for rotation)
         function getAnchorWorld(layer) {
             const obj = layer.fabricObject;
             if (!obj) return null;
-            // Anchor is relative to object's top-left (left/top)
+            const ax = layer.anchorX || 0;
+            const ay = layer.anchorY || 0;
+            const rad = ((obj.angle || 0) * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            // Rotate anchor offset around object origin (left/top)
             return {
-                x: (obj.left || 0) + (layer.anchorX || 0),
-                y: (obj.top || 0) + (layer.anchorY || 0),
+                x: (obj.left || 0) + ax * cos - ay * sin,
+                y: (obj.top || 0) + ax * sin + ay * cos,
+            };
+        }
+
+        // Inverse: convert world pointer to local anchor coords (un-rotate)
+        function worldToAnchor(obj, worldX, worldY) {
+            const dx = worldX - (obj.left || 0);
+            const dy = worldY - (obj.top || 0);
+            const rad = -((obj.angle || 0) * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            return {
+                x: dx * cos - dy * sin,
+                y: dx * sin + dy * cos,
             };
         }
 
         // Get object center in world coords
         function getCenterWorld(obj) {
-            const cx = (obj.left || 0) + (obj.width || 0) * (obj.scaleX || 1) / 2;
-            const cy = (obj.top || 0) + (obj.height || 0) * (obj.scaleY || 1) / 2;
-            return { x: cx, y: cy };
+            const hw = (obj.width || 0) * (obj.scaleX || 1) / 2;
+            const hh = (obj.height || 0) * (obj.scaleY || 1) / 2;
+            const rad = ((obj.angle || 0) * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            return {
+                x: (obj.left || 0) + hw * cos - hh * sin,
+                y: (obj.top || 0) + hw * sin + hh * cos,
+            };
         }
 
         const drawBones = () => {
@@ -239,13 +263,12 @@ export default function useFabricCanvas({
             const pointer = canvas.getScenePoint(e.e);
             const obj = layer.fabricObject;
 
-            // Anchor = pointer position relative to object's left/top
-            const newAnchorX = pointer.x - (obj.left || 0);
-            const newAnchorY = pointer.y - (obj.top || 0);
+            // Convert world pointer to local (un-rotated) anchor coords
+            const local = worldToAnchor(obj, pointer.x, pointer.y);
 
             dispatch({
                 type: 'SET_ANCHOR',
-                payload: { id: layerId, anchorX: Math.round(newAnchorX), anchorY: Math.round(newAnchorY) },
+                payload: { id: layerId, anchorX: Math.round(local.x), anchorY: Math.round(local.y) },
             });
             canvas.requestRenderAll();
         });
