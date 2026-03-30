@@ -103,7 +103,8 @@ export function EditorProvider({ children }) {
 
     // Lazy init UndoManager
     useEffect(() => {
-        import('./UndoManager').then(({ UndoManager }) => {
+        import('./UndoManager').then((mod) => {
+            const UndoManager = mod.default || mod.UndoManager;
             undoManagerRef.current = new UndoManager(50);
         });
     }, []);

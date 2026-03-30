@@ -1,4 +1,4 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { useEditor } from '../core/EditorContext';
 import { pointsToSVGPath } from '../utils/geometry';
 import { nextLayerId } from '../utils/layerId';
@@ -31,6 +31,14 @@ export default function CanvasEditor() {
     const bonesDrawRef = useRef(null);
     const activeToolRef = useRef(state.activeTool);
     const zoomRef = useRef(state.zoom);
+
+    // Keep refs in sync with state (critical for Fabric event handler closures)
+    useEffect(() => { currentFrameRef.current = state.currentFrame; }, [state.currentFrame]);
+    useEffect(() => { activeToolRef.current = state.activeTool; }, [state.activeTool]);
+    useEffect(() => { zoomRef.current = state.zoom; }, [state.zoom]);
+    useEffect(() => { layersRef.current = state.layers; }, [state.layers]);
+    useEffect(() => { showBonesRef.current = state.showBones; }, [state.showBones]);
+    useEffect(() => { selectedLayerIdRef.current = state.selectedLayerId; }, [state.selectedLayerId]);
 
     // Pen tool finalization
     const finalizePenPath = useCallback((closed) => {
