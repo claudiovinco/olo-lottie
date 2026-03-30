@@ -48,46 +48,50 @@ export default function useFabricCanvas({
             };
         }
 
-        // Get anchor world position for a layer (accounts for rotation)
+        // Get anchor world position for a layer using Fabric's transform matrix
         function getAnchorWorld(layer) {
             const obj = layer.fabricObject;
             if (!obj) return null;
             const ax = layer.anchorX || 0;
             const ay = layer.anchorY || 0;
-            const rad = ((obj.angle || 0) * Math.PI) / 180;
-            const cos = Math.cos(rad);
-            const sin = Math.sin(rad);
-            // Rotate anchor offset around object origin (left/top)
+            // Use Fabric's calcTransformMatrix to get the full transform
+            // Then transform the local anchor point to world coordinates
+            const matrix = obj.calcTransformMatrix();
+            // Fabric transform matrix: [a, b, c, d, e, f]
+            // a=scaleX*cos, b=scaleX*sin, c=-scaleY*sin, d=scaleY*cos, e=translateX, f=translateY
+            // But anchor is stored relative to obj top-left, not obj center
+            // Fabric transforms are centered on object center, so offset from center:
+            const cx = (obj.width || 0) / 2;
+            const cy = (obj.height || 0) / 2;
+            const localX = ax - cx;
+            const localY = ay - cy;
             return {
-                x: (obj.left || 0) + ax * cos - ay * sin,
-                y: (obj.top || 0) + ax * sin + ay * cos,
+                x: matrix[0] * localX + matrix[2] * localY + matrix[4],
+                y: matrix[1] * localX + matrix[3] * localY + matrix[5],
             };
         }
 
-        // Inverse: convert world pointer to local anchor coords (un-rotate)
+        // Inverse: convert world pointer to local anchor coords
         function worldToAnchor(obj, worldX, worldY) {
-            const dx = worldX - (obj.left || 0);
-            const dy = worldY - (obj.top || 0);
-            const rad = -((obj.angle || 0) * Math.PI) / 180;
-            const cos = Math.cos(rad);
-            const sin = Math.sin(rad);
-            return {
-                x: dx * cos - dy * sin,
-                y: dx * sin + dy * cos,
-            };
+            const matrix = obj.calcTransformMatrix();
+            // Invert the matrix manually: [a,b,c,d,e,f]
+            const a = matrix[0], b = matrix[1], c = matrix[2], d = matrix[3];
+            const e = matrix[4], f = matrix[5];
+            const det = a * d - b * c;
+            if (Math.abs(det) < 1e-6) return { x: 0, y: 0 };
+            const localX = (d * (worldX - e) - c * (worldY - f)) / det;
+            const localY = (-b * (worldX - e) + a * (worldY - f)) / det;
+            // Convert from center-relative to top-left-relative
+            const cx = (obj.width || 0) / 2;
+            const cy = (obj.height || 0) / 2;
+            return { x: localX + cx, y: localY + cy };
         }
 
         // Get object center in world coords
         function getCenterWorld(obj) {
-            const hw = (obj.width || 0) * (obj.scaleX || 1) / 2;
-            const hh = (obj.height || 0) * (obj.scaleY || 1) / 2;
-            const rad = ((obj.angle || 0) * Math.PI) / 180;
-            const cos = Math.cos(rad);
-            const sin = Math.sin(rad);
-            return {
-                x: (obj.left || 0) + hw * cos - hh * sin,
-                y: (obj.top || 0) + hw * sin + hh * cos,
-            };
+            const matrix = obj.calcTransformMatrix();
+            // matrix[4], matrix[5] IS the center in world coords
+            return { x: matrix[4], y: matrix[5] };
         }
 
         const drawBones = () => {
