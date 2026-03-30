@@ -68,21 +68,29 @@ export class LottieGenerator {
     }
 
     buildTransform(layerId, obj, anchorX = 0, anchorY = 0) {
-        // Lottie anchor must be in unscaled local coords
-        const sx = obj.scaleX || 1;
-        const sy = obj.scaleY || 1;
-        const localAnchorX = anchorX / sx;
-        const localAnchorY = anchorY / sy;
+        const w = obj.width || 0;
+        const h = obj.height || 0;
+
+        // Use Fabric's getCenterPoint for reliable world positioning
+        // This works for ALL shape types (rect, ellipse, polygon, path...)
+        const center = obj.getCenterPoint();
+        // Offset from left/top to visual center (constant, used for keyframed positions)
+        const offsetX = center.x - (obj.left || 0);
+        const offsetY = center.y - (obj.top || 0);
+
+        // Lottie anchor = center of shape in unscaled local coords
+        const lottieAnchorX = w / 2;
+        const lottieAnchorY = h / 2;
 
         return {
             o: this.buildAnimatedValue(layerId, 'opacity', (obj.opacity ?? 1) * 100, 100),
             r: this.buildAnimatedValue(layerId, 'angle', obj.angle || 0),
             p: this.buildAnimatedMultiComponent(layerId,
-                [{ prop: 'left', static: obj.left || 0, offset: anchorX },
-                 { prop: 'top', static: obj.top || 0, offset: anchorY }],
+                [{ prop: 'left', static: obj.left || 0, offset: offsetX },
+                 { prop: 'top', static: obj.top || 0, offset: offsetY }],
                 [0]
             ),
-            a: { a: 0, k: [localAnchorX, localAnchorY, 0] },
+            a: { a: 0, k: [lottieAnchorX, lottieAnchorY, 0] },
             s: this.buildAnimatedMultiComponent(layerId,
                 [{ prop: 'scaleX', static: obj.scaleX || 1, scale: 100 },
                  { prop: 'scaleY', static: obj.scaleY || 1, scale: 100 }],
