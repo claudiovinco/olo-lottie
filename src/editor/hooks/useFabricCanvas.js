@@ -49,48 +49,48 @@ export default function useFabricCanvas({
         }
 
         // Get anchor world position for a layer using Fabric's transform matrix
+        // Anchor is stored in SCALED coords relative to object top-left
+        // calcTransformMatrix() expects UNSCALED center-relative coords
         function getAnchorWorld(layer) {
             const obj = layer.fabricObject;
             if (!obj) return null;
             const ax = layer.anchorX || 0;
             const ay = layer.anchorY || 0;
-            // Use Fabric's calcTransformMatrix to get the full transform
-            // Then transform the local anchor point to world coordinates
-            const matrix = obj.calcTransformMatrix();
-            // Fabric transform matrix: [a, b, c, d, e, f]
-            // a=scaleX*cos, b=scaleX*sin, c=-scaleY*sin, d=scaleY*cos, e=translateX, f=translateY
-            // But anchor is stored relative to obj top-left, not obj center
-            // Fabric transforms are centered on object center, so offset from center:
+            const sx = obj.scaleX || 1;
+            const sy = obj.scaleY || 1;
             const cx = (obj.width || 0) / 2;
             const cy = (obj.height || 0) / 2;
-            const localX = ax - cx;
-            const localY = ay - cy;
+            // Convert: scaled-top-left-relative -> unscaled-center-relative
+            const localX = ax / sx - cx;
+            const localY = ay / sy - cy;
+            const matrix = obj.calcTransformMatrix();
             return {
                 x: matrix[0] * localX + matrix[2] * localY + matrix[4],
                 y: matrix[1] * localX + matrix[3] * localY + matrix[5],
             };
         }
 
-        // Inverse: convert world pointer to local anchor coords
+        // Inverse: convert world pointer to local anchor coords (scaled, top-left-relative)
         function worldToAnchor(obj, worldX, worldY) {
             const matrix = obj.calcTransformMatrix();
-            // Invert the matrix manually: [a,b,c,d,e,f]
             const a = matrix[0], b = matrix[1], c = matrix[2], d = matrix[3];
             const e = matrix[4], f = matrix[5];
             const det = a * d - b * c;
             if (Math.abs(det) < 1e-6) return { x: 0, y: 0 };
+            // World -> unscaled center-relative
             const localX = (d * (worldX - e) - c * (worldY - f)) / det;
             const localY = (-b * (worldX - e) + a * (worldY - f)) / det;
-            // Convert from center-relative to top-left-relative
+            // Unscaled center-relative -> scaled top-left-relative
             const cx = (obj.width || 0) / 2;
             const cy = (obj.height || 0) / 2;
-            return { x: localX + cx, y: localY + cy };
+            const sx = obj.scaleX || 1;
+            const sy = obj.scaleY || 1;
+            return { x: (localX + cx) * sx, y: (localY + cy) * sy };
         }
 
         // Get object center in world coords
         function getCenterWorld(obj) {
             const matrix = obj.calcTransformMatrix();
-            // matrix[4], matrix[5] IS the center in world coords
             return { x: matrix[4], y: matrix[5] };
         }
 
