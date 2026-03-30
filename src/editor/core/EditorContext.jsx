@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useReducer, useRef, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useRef, useCallback, useMemo } from 'react';
 import { KeyframeManager } from './KeyframeManager';
 import { LottieGenerator } from './LottieGenerator';
+import UndoManager from './UndoManager';
 
 const EditorContext = createContext(null);
 
@@ -99,15 +100,7 @@ export function EditorProvider({ children }) {
     const keyframeManagerRef = useRef(new KeyframeManager(initialState.fps, initialState.duration));
     const lottieGeneratorRef = useRef(new LottieGenerator(keyframeManagerRef.current));
     const fabricCanvasRef = useRef(null);
-    const undoManagerRef = useRef(null);
-
-    // Lazy init UndoManager
-    useEffect(() => {
-        import('./UndoManager').then((mod) => {
-            const UndoManager = mod.default || mod.UndoManager;
-            undoManagerRef.current = new UndoManager(50);
-        });
-    }, []);
+    const undoManagerRef = useRef(new UndoManager(50));
 
     const generateLottie = useCallback(() => {
         return lottieGeneratorRef.current.generate(state.layers, state.canvasWidth, state.canvasHeight);
