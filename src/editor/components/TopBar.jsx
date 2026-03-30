@@ -87,10 +87,11 @@ export default React.memo(function TopBar() {
     return (
         <div className="olo-lottie-topbar">
             <div className="olo-lottie-topbar__title">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="var(--olo-accent-blue, #89b4fa)">
-                    <path d="M12,2A10,10,0,1,0,22,12,10,10,0,0,0,12,2Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z" />
-                    <path d="M12,6a6,6,0,1,0,6,6A6,6,0,0,0,12,6Zm0,10a4,4,0,1,1,4-4A4,4,0,0,1,12,16Z" opacity="0.6" />
-                </svg>
+                <img
+                    src={(window.oloLottie?.pluginUrl || '') + 'assets/img/logo-wide.png'}
+                    alt="OLO Lottie"
+                    style={{ height: 28, width: 'auto' }}
+                />
                 <input
                     type="text"
                     value={state.title}

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+  <!-- OLO Lottie Logo - Square version -->
+  <!-- Left O -->
+  <circle cx="240" cy="340" r="220" fill="#95c11f"/>
+  <circle cx="240" cy="340" r="100" fill="#ffffff"/>
+  <!-- Center l with V-notch top -->
+  <path d="M 460 120 L 500 200 L 540 120 L 540 560 L 460 560 Z" fill="#95c11f"/>
+  <!-- Right O -->
+  <circle cx="760" cy="340" r="220" fill="#95c11f"/>
+  <circle cx="760" cy="340" r="100" fill="#ffffff"/>
+  <!-- "lottie" text below -->
+  <!-- l -->
+  <rect x="150" y="640" width="55" height="260" rx="5" fill="#666666"/>
+  <!-- o -->
+  <circle cx="290" cy="810" r="90" fill="#666666"/>
+  <circle cx="290" cy="810" r="45" fill="#ffffff"/>
+  <!-- t -->
+  <rect x="385" y="700" width="45" height="200" rx="5" fill="#666666"/>
+  <rect x="365" y="740" width="85" height="35" rx="5" fill="#666666"/>
+  <!-- t -->
+  <rect x="475" y="700" width="45" height="200" rx="5" fill="#666666"/>
+  <rect x="455" y="740" width="85" height="35" rx="5" fill="#666666"/>
+  <!-- i -->
+  <circle cx="587" cy="700" r="25" fill="#666666"/>
+  <rect x="565" y="740" width="45" height="160" rx="5" fill="#666666"/>
+  <!-- e -->
+  <circle cx="700" cy="810" r="90" fill="#666666"/>
+  <circle cx="700" cy="810" r="50" fill="#ffffff"/>
+  <rect x="700" y="790" width="95" height="40" fill="#ffffff"/>
+  <rect x="610" y="790" width="180" height="30" fill="#666666"/>
+</svg>
