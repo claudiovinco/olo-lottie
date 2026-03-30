@@ -8,13 +8,11 @@ export default function Preview() {
     const animRef = useRef(null);
     const panelRef = useRef(null);
     const [visible, setVisible] = useState(true);
-    // Position is always {x, y} in parent-relative coords (left/top)
-    const posRef = useRef(null); // mutable ref for drag perf
+    const posRef = useRef(null);
     const [, forceRender] = useState(0);
     const [size, setSize] = useState({ w: 280, h: 220 });
     const isDraggingRef = useRef(false);
 
-    // Calculate initial bottom-right position in parent-relative left/top coords
     useLayoutEffect(() => {
         if (!visible || posRef.current !== null) return;
         const panel = panelRef.current;
@@ -28,10 +26,11 @@ export default function Preview() {
         forceRender(n => n + 1);
     }, [visible]);
 
-    const refreshPreview = () => {
+    const refreshPreview = useCallback(() => {
         if (!containerRef.current) return;
 
         if (animRef.current) {
+            animRef.current.pause();
             animRef.current.destroy();
             animRef.current = null;
         }
@@ -50,7 +49,7 @@ export default function Preview() {
         } catch (e) {
             console.warn('Preview error:', e);
         }
-    };
+    }, [generateLottie]);
 
     // Subscribe to keyframe changes
     const [kfVersion, setKfVersion] = useState(0);
@@ -58,24 +57,23 @@ export default function Preview() {
         return keyframeManager.subscribe(() => setKfVersion(n => n + 1));
     }, [keyframeManager]);
 
-    // Refresh when layers change or keyframes change
+    // Refresh when layers change (reference changes on any update) or keyframes change
     useEffect(() => {
         if (!visible) return;
         const timeout = setTimeout(refreshPreview, 300);
         return () => clearTimeout(timeout);
-    }, [state.layers.length, kfVersion, visible]);
+    }, [state.layers, state.canvasWidth, state.canvasHeight, kfVersion, visible, refreshPreview]);
 
-    // Cleanup lottie animation on unmount
     useEffect(() => {
         return () => {
             if (animRef.current) {
+                animRef.current.pause();
                 animRef.current.destroy();
                 animRef.current = null;
             }
         };
     }, []);
 
-    // Drag: pure mouse-delta approach — no getBoundingClientRect, no coordinate conversion
     const handleDragStart = useCallback((e) => {
         if (e.button !== 0) return;
         if (e.target.closest('button')) return;
@@ -109,7 +107,6 @@ export default function Preview() {
         document.addEventListener('mouseup', onUp);
     }, []);
 
-    // Resize handler
     const handleResizeStart = useCallback((e) => {
         if (e.button !== 0) return;
         e.preventDefault();
@@ -143,19 +140,7 @@ export default function Preview() {
         return (
             <button
                 onClick={() => { posRef.current = null; setVisible(true); }}
-                style={{
-                    position: 'absolute',
-                    bottom: 16,
-                    right: 16,
-                    zIndex: 10,
-                    background: '#313244',
-                    color: '#cdd6f4',
-                    border: '1px solid #45475a',
-                    borderRadius: 6,
-                    padding: '6px 12px',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                }}
+                className="olo-lottie-preview-toggle"
             >
                 Show Preview
             </button>
@@ -164,65 +149,24 @@ export default function Preview() {
 
     const pos = posRef.current;
     const panelStyle = {
-        position: 'absolute',
-        zIndex: 100,
-        width: size.w,
-        height: size.h,
-        background: '#1e1e2e',
-        border: '1px solid #45475a',
-        borderRadius: 8,
-        overflow: 'hidden',
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
-        // Always use left/top — never bottom/right
+        position: 'absolute', zIndex: 100,
+        width: size.w, height: size.h,
         left: pos ? pos.x : 'auto',
         top: pos ? pos.y : 'auto',
-        // Temporary fallback before first layout calc
         ...(pos ? {} : { bottom: 16, right: 16 }),
     };
 
     return (
-        <div ref={panelRef} style={panelStyle}>
-            <div
-                className="olo-lottie-preview-panel__header"
-                onMouseDown={handleDragStart}
-                style={{ cursor: 'move' }}
-            >
+        <div ref={panelRef} className="olo-lottie-preview-panel" style={panelStyle}>
+            <div className="olo-lottie-preview-panel__header" onMouseDown={handleDragStart} style={{ cursor: 'move' }}>
                 <span>Preview</span>
                 <div style={{ display: 'flex', gap: 4 }}>
-                    <button
-                        onClick={refreshPreview}
-                        style={{ background: 'none', border: 'none', color: '#6c7086', cursor: 'pointer', fontSize: 12 }}
-                        title="Refresh"
-                    >
-                        ↻
-                    </button>
-                    <button
-                        onClick={() => setVisible(false)}
-                        style={{ background: 'none', border: 'none', color: '#6c7086', cursor: 'pointer', fontSize: 12 }}
-                        title="Close"
-                    >
-                        ✕
-                    </button>
+                    <button onClick={refreshPreview} title="Refresh" className="olo-lottie-preview-btn">{'\u21BB'}</button>
+                    <button onClick={() => setVisible(false)} title="Close" className="olo-lottie-preview-btn">{'\u2715'}</button>
                 </div>
             </div>
-            <div
-                ref={containerRef}
-                style={{ width: '100%', height: 'calc(100% - 30px)', background: '#ffffff' }}
-            />
-            {/* Resize handle */}
-            <div
-                onMouseDown={handleResizeStart}
-                style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    right: 0,
-                    width: 16,
-                    height: 16,
-                    cursor: 'nwse-resize',
-                    background: 'linear-gradient(135deg, transparent 50%, #45475a 50%)',
-                    borderRadius: '0 0 7px 0',
-                }}
-            />
+            <div ref={containerRef} className="olo-lottie-preview-panel__content" />
+            <div onMouseDown={handleResizeStart} className="olo-lottie-preview-panel__resize" />
         </div>
     );
 }

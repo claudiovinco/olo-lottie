@@ -1,17 +1,123 @@
-/* Olo Lottie Editor - Main Layout */
+/* Olo Lottie Editor - CSS Variables (Catppuccin Mocha) */
+#olo-lottie-editor {
+    --olo-bg-base: #1e1e2e;
+    --olo-bg-surface: #181825;
+    --olo-bg-overlay: #313244;
+    --olo-bg-highlight: #45475a;
+    --olo-bg-muted: #585b70;
+    --olo-text-primary: #cdd6f4;
+    --olo-text-secondary: #a6adc8;
+    --olo-text-muted: #6c7086;
+    --olo-accent-blue: #89b4fa;
+    --olo-accent-teal: #74c7ec;
+    --olo-accent-green: #a6e3a1;
+    --olo-accent-red: #f38ba8;
+    --olo-accent-peach: #fab387;
+    --olo-accent-mauve: #cba6f7;
+    --olo-accent-yellow: #f9e2af;
+    --olo-border: #313244;
+    --olo-radius-sm: 4px;
+    --olo-radius-md: 6px;
+    --olo-radius-lg: 8px;
+    --olo-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Main Layout */
 #olo-lottie-editor {
     display: flex;
     flex-direction: column;
     height: calc(100vh - 32px);
     width: 100%;
     max-width: 100%;
-    background: #1e1e2e;
-    color: #cdd6f4;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--olo-bg-base);
+    color: var(--olo-text-primary);
+    font-family: var(--olo-font-family);
     font-size: 13px;
     overflow: hidden;
     box-sizing: border-box;
 }
+
+/* Toast notification */
+.olo-lottie-toast {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10000;
+    padding: 10px 20px;
+    border-radius: var(--olo-radius-lg);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--olo-bg-base);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    animation: olo-toast-in 0.3s ease;
+}
+.olo-lottie-toast--success { background: var(--olo-accent-green); }
+.olo-lottie-toast--error { background: var(--olo-accent-red); }
+
+/* Preview panel classes */
+.olo-lottie-preview-panel {
+    background: var(--olo-bg-base);
+    border: 1px solid var(--olo-bg-highlight);
+    border-radius: var(--olo-radius-lg);
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.olo-lottie-preview-panel__content { width: 100%; height: calc(100% - 30px); background: #ffffff; }
+.olo-lottie-preview-panel__resize {
+    position: absolute; bottom: 0; right: 0; width: 16px; height: 16px;
+    cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, var(--olo-bg-highlight) 50%);
+    border-radius: 0 0 7px 0;
+}
+.olo-lottie-preview-btn { background: none; border: none; color: var(--olo-text-muted); cursor: pointer; font-size: 12px; }
+.olo-lottie-preview-toggle {
+    position: absolute; bottom: 16px; right: 16px; z-index: 10;
+    background: var(--olo-bg-overlay); color: var(--olo-text-primary);
+    border: 1px solid var(--olo-bg-highlight); border-radius: var(--olo-radius-md);
+    padding: 6px 12px; font-size: 12px; cursor: pointer;
+}
+
+/* Origin point grid */
+.olo-lottie-origin-grid {
+    display: grid; grid-template-columns: repeat(3, 16px); grid-template-rows: repeat(3, 16px);
+    gap: 1px; border: 1px solid var(--olo-bg-highlight); border-radius: var(--olo-radius-sm);
+    padding: 2px; background: var(--olo-bg-base);
+}
+.olo-lottie-origin-grid__btn {
+    width: 16px; height: 16px; border: none; border-radius: 2px; cursor: pointer;
+    padding: 0; display: flex; align-items: center; justify-content: center; background: transparent;
+}
+.olo-lottie-origin-grid__btn--active { background: var(--olo-accent-blue); }
+.olo-lottie-origin-grid__dot {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--olo-bg-muted); display: block; transition: all 0.15s;
+}
+.olo-lottie-origin-grid__dot--active { width: 8px; height: 8px; background: var(--olo-bg-base); }
+
+/* Property panel utilities */
+.olo-lottie-prop-unit { font-size: 10px; color: var(--olo-text-muted); }
+.olo-lottie-prop-select {
+    flex: 1; background: var(--olo-bg-overlay); color: var(--olo-text-primary);
+    border: 1px solid var(--olo-bg-highlight); border-radius: var(--olo-radius-sm);
+    padding: 2px 4px; font-size: 12px;
+}
+.olo-lottie-scale-lock {
+    background: none; border: none; color: var(--olo-accent-blue); cursor: pointer; font-size: 14px; padding: 0 4px;
+}
+.olo-lottie-properties__empty { padding: 16px 12px; color: var(--olo-text-muted); font-size: 12px; text-align: center; }
+
+/* Layer panel utilities */
+.olo-lottie-layer__indent { color: var(--olo-bg-highlight); font-size: 10px; margin-right: 4px; }
+.olo-lottie-layer__unparent { color: var(--olo-accent-peach); font-size: 10px; }
+.olo-lottie-layer__delete { color: var(--olo-accent-red); }
+.olo-lottie-layers__empty { padding: 16px 12px; color: var(--olo-text-muted); font-size: 12px; text-align: center; }
+
+/* Timeline utilities */
+.olo-lottie-timeline__frame { font-size: 11px; color: var(--olo-text-muted); }
+.olo-lottie-timeline__label--selected { font-weight: 600; color: var(--olo-text-primary); }
+.olo-lottie-timeline__label--sub { padding-left: 24px; font-size: 10px; color: var(--olo-text-muted); }
+.olo-lottie-timeline__label-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px;
+}
+.olo-lottie-timeline__track--sub { background: rgba(69, 71, 90, 0.15); }
 
 #olo-lottie-editor.olo-lottie-wrap {
     margin: 0;

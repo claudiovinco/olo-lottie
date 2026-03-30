@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useEditor } from '../core/EditorContext';
 
 function buildLayerTree(layers) {
@@ -15,27 +15,27 @@ function buildLayerTree(layers) {
     return { roots: roots.reverse(), childrenMap };
 }
 
-function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef, keyframeManager, handleSelect, handleDelete, handleRename, dragState, setDragState }) {
+const LayerItem = React.memo(function LayerItem({ layer, depth, childrenMap, selectedLayerId, dispatch, fabricCanvasRef, keyframeManager, handleSelect, handleDelete, handleRename, dragState, setDragState }) {
     const children = (childrenMap[layer.id] || []).slice().reverse();
-    const isSelected = state.selectedLayerId === layer.id;
+    const isSelected = selectedLayerId === layer.id;
     const isDragOver = dragState.overId === layer.id;
 
     const onDragStart = useCallback((e) => {
         e.stopPropagation();
         e.dataTransfer.setData('text/plain', layer.id);
         setDragState(s => ({ ...s, dragId: layer.id }));
-    }, [layer.id]);
+    }, [layer.id, setDragState]);
 
     const onDragOver = useCallback((e) => {
         e.preventDefault();
         e.stopPropagation();
         setDragState(s => ({ ...s, overId: layer.id }));
-    }, [layer.id]);
+    }, [layer.id, setDragState]);
 
     const onDragLeave = useCallback((e) => {
         e.stopPropagation();
         setDragState(s => s.overId === layer.id ? { ...s, overId: null } : s);
-    }, [layer.id]);
+    }, [layer.id, setDragState]);
 
     const onDrop = useCallback((e) => {
         e.preventDefault();
@@ -45,7 +45,7 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
             dispatch({ type: 'SET_PARENT', payload: { childId, parentId: layer.id } });
         }
         setDragState({ dragId: null, overId: null });
-    }, [layer.id, dispatch]);
+    }, [layer.id, dispatch, setDragState]);
 
     return (
         <>
@@ -53,7 +53,7 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
                 className={`olo-lottie-layer ${isSelected ? 'olo-lottie-layer--selected' : ''}`}
                 style={{
                     paddingLeft: 8 + depth * 16,
-                    borderLeft: isDragOver ? '2px solid #89b4fa' : '2px solid transparent',
+                    borderLeft: isDragOver ? '2px solid var(--olo-accent-blue, #89b4fa)' : '2px solid transparent',
                 }}
                 onClick={() => handleSelect(layer.id)}
                 draggable
@@ -63,12 +63,9 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
                 onDrop={onDrop}
             >
                 {depth > 0 && (
-                    <span style={{ color: '#45475a', fontSize: 10, marginRight: 4 }}>&#x2514;</span>
+                    <span className="olo-lottie-layer__indent">{'\u2514'}</span>
                 )}
-                <div
-                    className="olo-lottie-layer__color"
-                    style={{ background: layer.color || '#89b4fa' }}
-                />
+                <div className="olo-lottie-layer__color" style={{ background: layer.color || '#89b4fa' }} />
                 <span
                     className="olo-lottie-layer__name"
                     onDoubleClick={(e) => {
@@ -79,18 +76,12 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
                         range.selectNodeContents(el);
                         window.getSelection().removeAllRanges();
                         window.getSelection().addRange(range);
-
                         const finish = () => {
                             el.contentEditable = false;
                             handleRename(layer.id, el.textContent.trim() || layer.name);
                         };
                         el.onblur = finish;
-                        el.onkeydown = (ev) => {
-                            if (ev.key === 'Enter') {
-                                ev.preventDefault();
-                                finish();
-                            }
-                        };
+                        el.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); finish(); } };
                     }}
                 >
                     {layer.name}
@@ -113,7 +104,7 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
                         <button
                             onClick={(e) => { e.stopPropagation(); dispatch({ type: 'SET_PARENT', payload: { childId: layer.id, parentId: null } }); }}
                             title="Unparent"
-                            style={{ color: '#fab387', fontSize: 10 }}
+                            className="olo-lottie-layer__unparent"
                         >
                             {'\u2197'}
                         </button>
@@ -121,7 +112,7 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
                     <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(layer.id); }}
                         title="Delete"
-                        style={{ color: '#f38ba8' }}
+                        className="olo-lottie-layer__delete"
                     >
                         {'\u2715'}
                     </button>
@@ -133,7 +124,7 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
                     layer={child}
                     depth={depth + 1}
                     childrenMap={childrenMap}
-                    state={state}
+                    selectedLayerId={selectedLayerId}
                     dispatch={dispatch}
                     fabricCanvasRef={fabricCanvasRef}
                     keyframeManager={keyframeManager}
@@ -146,7 +137,13 @@ function LayerItem({ layer, depth, childrenMap, state, dispatch, fabricCanvasRef
             ))}
         </>
     );
-}
+}, (prev, next) => {
+    return prev.layer === next.layer
+        && prev.depth === next.depth
+        && prev.childrenMap === next.childrenMap
+        && prev.selectedLayerId === next.selectedLayerId
+        && prev.dragState === next.dragState;
+});
 
 export default function LayerPanel() {
     const { state, dispatch, fabricCanvasRef, keyframeManager } = useEditor();
@@ -179,9 +176,8 @@ export default function LayerPanel() {
         dispatch({ type: 'UPDATE_LAYER', payload: { id: layerId, name } });
     }, [dispatch]);
 
-    const { roots, childrenMap } = buildLayerTree(state.layers);
+    const { roots, childrenMap } = useMemo(() => buildLayerTree(state.layers), [state.layers]);
 
-    // Drop on the panel background = unparent (drop to root)
     const onPanelDragOver = useCallback((e) => {
         e.preventDefault();
         setDragState(s => ({ ...s, overId: '__root__' }));
@@ -198,16 +194,10 @@ export default function LayerPanel() {
 
     return (
         <div className="olo-lottie-layers">
-            <div className="olo-lottie-panel__header">
-                <span>Layers</span>
-            </div>
-            <div
-                className="olo-lottie-layers__list"
-                onDragOver={onPanelDragOver}
-                onDrop={onPanelDrop}
-            >
+            <div className="olo-lottie-panel__header"><span>Layers</span></div>
+            <div className="olo-lottie-layers__list" onDragOver={onPanelDragOver} onDrop={onPanelDrop}>
                 {state.layers.length === 0 && (
-                    <div style={{ padding: '16px 12px', color: '#6c7086', fontSize: '12px', textAlign: 'center' }}>
+                    <div className="olo-lottie-layers__empty">
                         No layers yet.<br />Use the toolbar to add shapes.
                     </div>
                 )}
@@ -217,7 +207,7 @@ export default function LayerPanel() {
                         layer={layer}
                         depth={0}
                         childrenMap={childrenMap}
-                        state={state}
+                        selectedLayerId={state.selectedLayerId}
                         dispatch={dispatch}
                         fabricCanvasRef={fabricCanvasRef}
                         keyframeManager={keyframeManager}

@@ -42,19 +42,21 @@ class Olo_Lottie_Admin {
             'animationId' => isset($_GET['id']) ? intval($_GET['id']) : 0,
         ];
 
+        $version = defined('WP_DEBUG') && WP_DEBUG ? time() : OLO_LOTTIE_VERSION;
+
         if ($hook === 'toplevel_page_olo-lottie-editor') {
             wp_enqueue_style(
                 'olo-lottie-editor',
                 OLO_LOTTIE_URL . 'assets/css/editor.css',
                 [],
-                time()
+                $version
             );
 
             wp_enqueue_script(
                 'olo-lottie-editor',
                 OLO_LOTTIE_URL . 'build/editor.js',
                 [],
-                time(),
+                $version,
                 true
             );
 
@@ -101,7 +103,7 @@ class Olo_Lottie_Admin {
     }
 
     public function add_module_type($tag, $handle, $src) {
-        if (in_array($handle, ['olo-lottie-editor', 'olo-lottie-list', 'olo-lottie-block'], true)) {
+        if (in_array($handle, ['olo-lottie-editor', 'olo-lottie-list', 'olo-lottie-block', 'olo-lottie-player'], true)) {
             $tag = str_replace(' src=', ' type="module" src=', $tag);
         }
         return $tag;

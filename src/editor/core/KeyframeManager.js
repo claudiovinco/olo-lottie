@@ -1,6 +1,10 @@
 /**
  * KeyframeManager - Manages animation keyframes and interpolation
+ * Optimized with interpolation cache, binary search, and snapshot versioning
  */
+
+import { applyEasing } from '../utils/easing';
+import { hexToRgb, interpolateColor } from '../utils/color';
 
 export class KeyframeManager {
     constructor(fps = 30, duration = 3) {
@@ -8,9 +12,18 @@ export class KeyframeManager {
         this.duration = duration;
         this.totalFrames = Math.round(fps * duration);
         this.currentFrame = 0;
-        // layerId -> property -> [{frame, value, easing}]
         this.keyframes = new Map();
         this.listeners = new Set();
+        this._version = 0;
+        this._cache = new Map();
+    }
+
+    _invalidateCache() {
+        this._cache.clear();
+    }
+
+    getSnapshotVersion() {
+        return this._version;
     }
 
     setDuration(duration) {
@@ -19,12 +32,14 @@ export class KeyframeManager {
         if (this.currentFrame > this.totalFrames) {
             this.currentFrame = this.totalFrames;
         }
+        this._invalidateCache();
         this.notify();
     }
 
     setFps(fps) {
         this.fps = fps;
         this.totalFrames = Math.round(fps * this.duration);
+        this._invalidateCache();
         this.notify();
     }
 
@@ -43,11 +58,11 @@ export class KeyframeManager {
             layerKf[property] = [];
         }
 
-        // Remove existing keyframe at this frame
         layerKf[property] = layerKf[property].filter(kf => kf.frame !== frame);
         layerKf[property].push({ frame, value, easing });
         layerKf[property].sort((a, b) => a.frame - b.frame);
 
+        this._invalidateCache();
         this.notify();
     }
 
@@ -61,6 +76,7 @@ export class KeyframeManager {
             delete layerKf[property];
         }
 
+        this._invalidateCache();
         this.notify();
     }
 
@@ -77,50 +93,64 @@ export class KeyframeManager {
     }
 
     getValueAtFrame(layerId, property, frame) {
+        const cacheKey = `${layerId}|${property}|${frame}`;
+        if (this._cache.has(cacheKey)) {
+            return this._cache.get(cacheKey);
+        }
+
         const keyframes = this.getKeyframes(layerId, property);
         if (keyframes.length === 0) return null;
 
-        // Exact match
-        const exact = keyframes.find(kf => kf.frame === frame);
-        if (exact) return exact.value;
+        let result;
 
-        // Before first keyframe
-        if (frame <= keyframes[0].frame) return keyframes[0].value;
-
-        // After last keyframe
-        if (frame >= keyframes[keyframes.length - 1].frame) {
-            return keyframes[keyframes.length - 1].value;
-        }
-
-        // Interpolate between two keyframes
-        let prev = keyframes[0];
-        let next = keyframes[1];
-        for (let i = 0; i < keyframes.length - 1; i++) {
-            if (keyframes[i].frame <= frame && keyframes[i + 1].frame >= frame) {
-                prev = keyframes[i];
-                next = keyframes[i + 1];
-                break;
+        // Exact match via binary search
+        const exactIdx = this._binarySearch(keyframes, frame);
+        if (exactIdx >= 0) {
+            result = keyframes[exactIdx].value;
+        } else if (frame <= keyframes[0].frame) {
+            result = keyframes[0].value;
+        } else if (frame >= keyframes[keyframes.length - 1].frame) {
+            result = keyframes[keyframes.length - 1].value;
+        } else {
+            // Find surrounding keyframes via binary search
+            let lo = 0, hi = keyframes.length - 1;
+            while (lo < hi - 1) {
+                const mid = (lo + hi) >> 1;
+                if (keyframes[mid].frame <= frame) lo = mid;
+                else hi = mid;
             }
+            const prev = keyframes[lo];
+            const next = keyframes[hi];
+            const t = (frame - prev.frame) / (next.frame - prev.frame);
+            result = this.interpolate(prev.value, next.value, t, next.easing);
         }
 
-        const t = (frame - prev.frame) / (next.frame - prev.frame);
-        return this.interpolate(prev.value, next.value, t, next.easing);
+        this._cache.set(cacheKey, result);
+        return result;
+    }
+
+    _binarySearch(keyframes, frame) {
+        let lo = 0, hi = keyframes.length - 1;
+        while (lo <= hi) {
+            const mid = (lo + hi) >> 1;
+            if (keyframes[mid].frame === frame) return mid;
+            if (keyframes[mid].frame < frame) lo = mid + 1;
+            else hi = mid - 1;
+        }
+        return -1;
     }
 
     interpolate(from, to, t, easing) {
-        const easedT = this.applyEasing(t, easing);
+        const easedT = applyEasing(t, easing);
 
-        // Number interpolation
         if (typeof from === 'number' && typeof to === 'number') {
             return from + (to - from) * easedT;
         }
 
-        // Color interpolation (hex)
         if (typeof from === 'string' && from.startsWith('#')) {
-            return this.interpolateColor(from, to, easedT);
+            return interpolateColor(from, to, easedT);
         }
 
-        // Object interpolation (e.g., {x, y})
         if (typeof from === 'object' && from !== null) {
             const result = {};
             for (const key of Object.keys(from)) {
@@ -133,53 +163,13 @@ export class KeyframeManager {
             return result;
         }
 
-        // No interpolation possible
         return easedT < 0.5 ? from : to;
-    }
-
-    applyEasing(t, easing) {
-        switch (easing) {
-            case 'linear':
-                return t;
-            case 'easeIn':
-                return t * t;
-            case 'easeOut':
-                return t * (2 - t);
-            case 'easeInOut':
-                return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-            case 'easeInCubic':
-                return t * t * t;
-            case 'easeOutCubic':
-                return (t - 1) * (t - 1) * (t - 1) + 1;
-            default:
-                return t;
-        }
-    }
-
-    interpolateColor(from, to, t) {
-        const f = this.hexToRgb(from);
-        const toRgb = this.hexToRgb(to);
-        if (!f || !toRgb) return from;
-
-        const r = Math.round(f.r + (toRgb.r - f.r) * t);
-        const g = Math.round(f.g + (toRgb.g - f.g) * t);
-        const b = Math.round(f.b + (toRgb.b - f.b) * t);
-
-        return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-    }
-
-    hexToRgb(hex) {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16),
-        } : null;
     }
 
     removeAllKeyframes(layerId) {
         const key = `${layerId}`;
         this.keyframes.delete(key);
+        this._invalidateCache();
         this.notify();
     }
 
@@ -194,6 +184,7 @@ export class KeyframeManager {
     }
 
     notify() {
+        this._version++;
         this.listeners.forEach(fn => fn());
     }
 
@@ -221,6 +212,7 @@ export class KeyframeManager {
                 this.keyframes.set(layerId, props);
             }
         }
+        this._invalidateCache();
         this.notify();
     }
 }

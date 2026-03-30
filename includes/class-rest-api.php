@@ -23,6 +23,7 @@ class Olo_Lottie_Rest_Api {
                 'methods' => 'POST',
                 'callback' => [$this, 'save_animation'],
                 'permission_callback' => [$this, 'check_permission'],
+                'args' => $this->get_save_args(),
             ],
         ]);
 
@@ -31,6 +32,9 @@ class Olo_Lottie_Rest_Api {
                 'methods' => 'GET',
                 'callback' => [$this, 'get_animation'],
                 'permission_callback' => [$this, 'check_permission'],
+                'args' => [
+                    'id' => ['validate_callback' => function ($param) { return is_numeric($param); }],
+                ],
             ],
             [
                 'methods' => 'PUT',
@@ -43,6 +47,46 @@ class Olo_Lottie_Rest_Api {
                 'permission_callback' => [$this, 'check_permission'],
             ],
         ]);
+
+        // Public endpoint for frontend player (no auth required)
+        register_rest_route($namespace, '/public/animations/(?P<id>\d+)', [
+            [
+                'methods' => 'GET',
+                'callback' => [$this, 'get_public_animation'],
+                'permission_callback' => '__return_true',
+                'args' => [
+                    'id' => ['validate_callback' => function ($param) { return is_numeric($param); }],
+                ],
+            ],
+        ]);
+    }
+
+    private function get_save_args() {
+        return [
+            'title' => [
+                'type' => 'string',
+                'sanitize_callback' => 'sanitize_text_field',
+            ],
+            'width' => [
+                'type' => 'integer',
+                'sanitize_callback' => 'absint',
+                'validate_callback' => function ($v) { return $v >= 1 && $v <= 10000; },
+            ],
+            'height' => [
+                'type' => 'integer',
+                'sanitize_callback' => 'absint',
+                'validate_callback' => function ($v) { return $v >= 1 && $v <= 10000; },
+            ],
+            'fps' => [
+                'type' => 'integer',
+                'sanitize_callback' => 'absint',
+                'validate_callback' => function ($v) { return $v >= 1 && $v <= 120; },
+            ],
+            'duration' => [
+                'type' => 'number',
+                'validate_callback' => function ($v) { return $v >= 0.1 && $v <= 300; },
+            ],
+        ];
     }
 
     public function check_permission() {
@@ -74,8 +118,35 @@ class Olo_Lottie_Rest_Api {
         return rest_ensure_response($this->format_animation($post));
     }
 
+    public function get_public_animation($request) {
+        $post = get_post($request['id']);
+        if (!$post || $post->post_type !== 'olo_lottie') {
+            return new WP_Error('not_found', 'Animation not found', ['status' => 404]);
+        }
+
+        $lottie_json = get_post_meta($post->ID, '_olo_lottie_json', true);
+
+        $response = rest_ensure_response([
+            'id' => $post->ID,
+            'lottie_json' => $lottie_json ? json_decode($lottie_json, true) : null,
+            'width' => (int) get_post_meta($post->ID, '_olo_lottie_width', true) ?: 800,
+            'height' => (int) get_post_meta($post->ID, '_olo_lottie_height', true) ?: 600,
+        ]);
+
+        // Cache for 1 hour
+        $response->header('Cache-Control', 'public, max-age=3600');
+
+        return $response;
+    }
+
     public function save_animation($request) {
         $params = $request->get_json_params();
+
+        // Validate JSON payload size
+        $json_size = strlen(wp_json_encode($params));
+        if ($json_size > 5 * 1024 * 1024) {
+            return new WP_Error('payload_too_large', 'Animation data exceeds 5MB limit', ['status' => 413]);
+        }
 
         $post_id = wp_insert_post([
             'post_type' => 'olo_lottie',
@@ -87,18 +158,7 @@ class Olo_Lottie_Rest_Api {
             return $post_id;
         }
 
-        if (isset($params['lottie_json'])) {
-            update_post_meta($post_id, '_olo_lottie_json', wp_slash(wp_json_encode($params['lottie_json'])));
-        }
-
-        if (isset($params['editor_state'])) {
-            update_post_meta($post_id, '_olo_lottie_editor_state', wp_slash(wp_json_encode($params['editor_state'])));
-        }
-
-        update_post_meta($post_id, '_olo_lottie_width', intval($params['width'] ?? 800));
-        update_post_meta($post_id, '_olo_lottie_height', intval($params['height'] ?? 600));
-        update_post_meta($post_id, '_olo_lottie_fps', intval($params['fps'] ?? 30));
-        update_post_meta($post_id, '_olo_lottie_duration', floatval($params['duration'] ?? 3));
+        $this->save_animation_meta($post_id, $params);
 
         return rest_ensure_response($this->format_animation(get_post($post_id)));
     }
@@ -118,28 +178,32 @@ class Olo_Lottie_Rest_Api {
             ]);
         }
 
+        $this->save_animation_meta($post->ID, $params);
+
+        return rest_ensure_response($this->format_animation(get_post($post->ID)));
+    }
+
+    private function save_animation_meta($post_id, $params) {
         if (isset($params['lottie_json'])) {
-            update_post_meta($post->ID, '_olo_lottie_json', wp_slash(wp_json_encode($params['lottie_json'])));
+            update_post_meta($post_id, '_olo_lottie_json', wp_slash(wp_json_encode($params['lottie_json'])));
         }
 
         if (isset($params['editor_state'])) {
-            update_post_meta($post->ID, '_olo_lottie_editor_state', wp_slash(wp_json_encode($params['editor_state'])));
+            update_post_meta($post_id, '_olo_lottie_editor_state', wp_slash(wp_json_encode($params['editor_state'])));
         }
 
         if (isset($params['width'])) {
-            update_post_meta($post->ID, '_olo_lottie_width', intval($params['width']));
+            update_post_meta($post_id, '_olo_lottie_width', min(10000, max(1, intval($params['width']))));
         }
         if (isset($params['height'])) {
-            update_post_meta($post->ID, '_olo_lottie_height', intval($params['height']));
+            update_post_meta($post_id, '_olo_lottie_height', min(10000, max(1, intval($params['height']))));
         }
         if (isset($params['fps'])) {
-            update_post_meta($post->ID, '_olo_lottie_fps', intval($params['fps']));
+            update_post_meta($post_id, '_olo_lottie_fps', min(120, max(1, intval($params['fps']))));
         }
         if (isset($params['duration'])) {
-            update_post_meta($post->ID, '_olo_lottie_duration', floatval($params['duration']));
+            update_post_meta($post_id, '_olo_lottie_duration', min(300, max(0.1, floatval($params['duration']))));
         }
-
-        return rest_ensure_response($this->format_animation(get_post($post->ID)));
     }
 
     public function delete_animation($request) {

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useEditor } from '../core/EditorContext';
 
 const TRACK_HEIGHT = 28;
@@ -8,25 +8,23 @@ const FRAME_WIDTH = 8;
 export default function Timeline() {
     const { state, dispatch, keyframeManager } = useEditor();
     const tracksRef = useRef(null);
-    const rulerRef = useRef(null);
     const animFrameRef = useRef(null);
     const currentFrameRef = useRef(state.currentFrame);
-    const [, forceUpdate] = useState(0);
 
     const totalFrames = Math.round(state.fps * state.duration);
     const totalFramesRef = useRef(totalFrames);
     const timelineWidth = totalFrames * FRAME_WIDTH;
 
-    // Keep refs in sync
     useEffect(() => { currentFrameRef.current = state.currentFrame; }, [state.currentFrame]);
     useEffect(() => { totalFramesRef.current = totalFrames; }, [totalFrames]);
 
-    // Subscribe to keyframe changes to re-render
-    useEffect(() => {
-        return keyframeManager.subscribe(() => forceUpdate(n => n + 1));
-    }, [keyframeManager]);
+    // Subscribe to keyframe changes via useSyncExternalStore
+    const kfVersion = useSyncExternalStore(
+        useCallback(cb => keyframeManager.subscribe(cb), [keyframeManager]),
+        useCallback(() => keyframeManager.getSnapshotVersion(), [keyframeManager])
+    );
 
-    // Playback loop — only re-registers when isPlaying or fps changes
+    // Playback loop
     useEffect(() => {
         if (!state.isPlaying) {
             if (animFrameRef.current) {
@@ -44,19 +42,13 @@ export default function Timeline() {
             if (delta >= frameDuration) {
                 lastTime = now - (delta % frameDuration);
                 const next = currentFrameRef.current + 1;
-                if (next > totalFramesRef.current) {
-                    dispatch({ type: 'SET_FRAME', payload: 0 });
-                } else {
-                    dispatch({ type: 'SET_FRAME', payload: next });
-                }
+                dispatch({ type: 'SET_FRAME', payload: next > totalFramesRef.current ? 0 : next });
             }
             animFrameRef.current = requestAnimationFrame(tick);
         };
 
         animFrameRef.current = requestAnimationFrame(tick);
-        return () => {
-            if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-        };
+        return () => { if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current); };
     }, [state.isPlaying, state.fps, dispatch]);
 
     const handleRulerClick = useCallback((e) => {
@@ -74,10 +66,8 @@ export default function Timeline() {
         if (keyframeManager.hasKeyframeAt(layerId, property, frame)) {
             keyframeManager.removeKeyframe(layerId, property, frame);
         } else {
-            // Get current value from the fabric object
             const layer = state.layers.find(l => l.id === layerId);
             if (!layer?.fabricObject) return;
-
             const obj = layer.fabricObject;
             let value;
             switch (property) {
@@ -90,31 +80,24 @@ export default function Timeline() {
                 case 'fill': value = obj.fill; break;
                 default: return;
             }
-
             keyframeManager.addKeyframe(layerId, property, frame, value);
         }
-
         dispatch({ type: 'SET_FRAME', payload: frame });
     }, [keyframeManager, state.layers, dispatch]);
 
-    const formatTime = (frame) => {
+    const formatTime = useCallback((frame) => {
         const seconds = frame / state.fps;
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         const frames = frame % state.fps;
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}:${String(frames).padStart(2, '0')}`;
-    };
+    }, [state.fps]);
 
-    // Build track list: each layer has expandable properties
     const animatableProps = ['left', 'top', 'scaleX', 'scaleY', 'angle', 'opacity', 'fill'];
     const propLabels = {
-        left: 'Position X',
-        top: 'Position Y',
-        scaleX: 'Scale X',
-        scaleY: 'Scale Y',
-        angle: 'Rotation',
-        opacity: 'Opacity',
-        fill: 'Fill Color',
+        left: 'Position X', top: 'Position Y',
+        scaleX: 'Scale X', scaleY: 'Scale Y',
+        angle: 'Rotation', opacity: 'Opacity', fill: 'Fill Color',
     };
 
     return (
@@ -146,43 +129,26 @@ export default function Timeline() {
                 <span className="olo-lottie-timeline__time">
                     {formatTime(state.currentFrame)} / {formatTime(totalFrames)}
                 </span>
-                <span style={{ fontSize: '11px', color: '#6c7086' }}>
-                    Frame {state.currentFrame}
-                </span>
+                <span className="olo-lottie-timeline__frame">Frame {state.currentFrame}</span>
             </div>
 
             <div className="olo-lottie-timeline__content">
                 <div className="olo-lottie-timeline__labels">
-                    <div style={{ height: RULER_HEIGHT, borderBottom: '1px solid #313244' }} />
+                    <div style={{ height: RULER_HEIGHT, borderBottom: '1px solid var(--olo-border, #313244)' }} />
                     {state.layers.map(layer => (
                         <React.Fragment key={layer.id}>
                             <div
-                                className="olo-lottie-timeline__label"
-                                style={{
-                                    fontWeight: state.selectedLayerId === layer.id ? 600 : 400,
-                                    color: state.selectedLayerId === layer.id ? '#cdd6f4' : '#a6adc8',
-                                }}
+                                className={`olo-lottie-timeline__label ${state.selectedLayerId === layer.id ? 'olo-lottie-timeline__label--selected' : ''}`}
                                 onClick={() => dispatch({ type: 'SELECT_LAYER', payload: layer.id })}
                             >
-                                <span style={{
-                                    display: 'inline-block',
-                                    width: 8,
-                                    height: 8,
-                                    borderRadius: 2,
-                                    background: layer.color || '#89b4fa',
-                                    marginRight: 6,
-                                }} />
+                                <span className="olo-lottie-timeline__label-dot" style={{ background: layer.color || '#89b4fa' }} />
                                 {layer.name}
                             </div>
                             {state.selectedLayerId === layer.id && animatableProps.map(prop => {
                                 const kfs = keyframeManager.getKeyframes(layer.id, prop);
                                 if (kfs.length === 0) return null;
                                 return (
-                                    <div
-                                        key={prop}
-                                        className="olo-lottie-timeline__label"
-                                        style={{ paddingLeft: 24, fontSize: '10px', color: '#6c7086' }}
-                                    >
+                                    <div key={prop} className="olo-lottie-timeline__label olo-lottie-timeline__label--sub">
                                         {propLabels[prop]}
                                     </div>
                                 );
@@ -192,25 +158,13 @@ export default function Timeline() {
                 </div>
 
                 <div className="olo-lottie-timeline__tracks" ref={tracksRef}>
-                    {/* Ruler */}
-                    <div
-                        className="olo-lottie-timeline__ruler"
-                        ref={rulerRef}
-                        style={{ width: timelineWidth }}
-                        onClick={handleRulerClick}
-                    >
+                    <div className="olo-lottie-timeline__ruler" style={{ width: timelineWidth }} onClick={handleRulerClick}>
                         <RulerCanvas width={timelineWidth} height={RULER_HEIGHT} fps={state.fps} totalFrames={totalFrames} />
                     </div>
 
-                    {/* Tracks */}
                     {state.layers.map(layer => (
                         <React.Fragment key={layer.id}>
-                            <div
-                                className="olo-lottie-timeline__track"
-                                style={{ width: timelineWidth }}
-                                onDoubleClick={(e) => handleTrackClick(e, layer.id, 'left')}
-                            >
-                                {/* Show all keyframes for this layer */}
+                            <div className="olo-lottie-timeline__track" style={{ width: timelineWidth }} onDoubleClick={(e) => handleTrackClick(e, layer.id, 'left')}>
                                 {animatableProps.map(prop =>
                                     keyframeManager.getKeyframes(layer.id, prop).map(kf => (
                                         <div
@@ -222,23 +176,13 @@ export default function Timeline() {
                                     ))
                                 )}
                             </div>
-                            {/* Expanded property tracks */}
                             {state.selectedLayerId === layer.id && animatableProps.map(prop => {
                                 const kfs = keyframeManager.getKeyframes(layer.id, prop);
                                 if (kfs.length === 0) return null;
                                 return (
-                                    <div
-                                        key={prop}
-                                        className="olo-lottie-timeline__track"
-                                        style={{ width: timelineWidth, background: 'rgba(69, 71, 90, 0.15)' }}
-                                        onDoubleClick={(e) => handleTrackClick(e, layer.id, prop)}
-                                    >
+                                    <div key={prop} className="olo-lottie-timeline__track olo-lottie-timeline__track--sub" style={{ width: timelineWidth }} onDoubleClick={(e) => handleTrackClick(e, layer.id, prop)}>
                                         {kfs.map(kf => (
-                                            <div
-                                                key={kf.frame}
-                                                className={`olo-lottie-keyframe ${state.currentFrame === kf.frame ? 'olo-lottie-keyframe--selected' : ''}`}
-                                                style={{ left: kf.frame * FRAME_WIDTH }}
-                                            />
+                                            <div key={kf.frame} className={`olo-lottie-keyframe ${state.currentFrame === kf.frame ? 'olo-lottie-keyframe--selected' : ''}`} style={{ left: kf.frame * FRAME_WIDTH }} />
                                         ))}
                                     </div>
                                 );
@@ -246,18 +190,14 @@ export default function Timeline() {
                         </React.Fragment>
                     ))}
 
-                    {/* Playhead */}
-                    <div
-                        className="olo-lottie-timeline__playhead"
-                        style={{ left: state.currentFrame * FRAME_WIDTH }}
-                    />
+                    <div className="olo-lottie-timeline__playhead" style={{ left: state.currentFrame * FRAME_WIDTH }} />
                 </div>
             </div>
         </div>
     );
 }
 
-function RulerCanvas({ width, height, fps, totalFrames }) {
+const RulerCanvas = React.memo(function RulerCanvas({ width, height, fps, totalFrames }) {
     const canvasRef = useRef(null);
 
     useEffect(() => {
@@ -268,19 +208,15 @@ function RulerCanvas({ width, height, fps, totalFrames }) {
         canvas.height = height;
 
         ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = '#6c7086';
         ctx.font = '10px monospace';
 
         for (let i = 0; i <= totalFrames; i++) {
             const x = i * FRAME_WIDTH;
-
             if (i % fps === 0) {
-                // Second marker
                 ctx.fillStyle = '#a6adc8';
                 ctx.fillRect(x, height - 12, 1, 12);
                 ctx.fillText(`${i / fps}s`, x + 3, 10);
             } else if (i % (fps / 2) === 0) {
-                // Half-second marker
                 ctx.fillStyle = '#45475a';
                 ctx.fillRect(x, height - 8, 1, 8);
             } else if (i % 5 === 0) {
@@ -291,4 +227,4 @@ function RulerCanvas({ width, height, fps, totalFrames }) {
     }, [width, height, fps, totalFrames]);
 
     return <canvas ref={canvasRef} style={{ width, height, display: 'block' }} />;
-}
+});

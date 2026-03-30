@@ -56,8 +56,8 @@ class Olo_Lottie_Block {
             return '<p>' . esc_html__('No animation selected', 'olo-lottie') . '</p>';
         }
 
-        $json = get_post_meta($id, '_olo_lottie_json', true);
-        if (!$json) {
+        $post = get_post($id);
+        if (!$post || $post->post_type !== 'olo_lottie') {
             return '<p>' . esc_html__('Animation not found', 'olo-lottie') . '</p>';
         }
 
@@ -65,10 +65,12 @@ class Olo_Lottie_Block {
         $height = esc_attr($attributes['height']);
         $loop = $attributes['loop'] ? 'true' : 'false';
         $autoplay = $attributes['autoplay'] ? 'true' : 'false';
+        $rest_url = esc_url(rest_url('olo-lottie/v1/'));
 
         return sprintf(
-            '<div class="olo-lottie-player" data-animation="%s" data-loop="%s" data-autoplay="%s" style="width:%s;height:%s;"></div>',
-            esc_attr($json),
+            '<div class="olo-lottie-player" data-animation-id="%d" data-rest-url="%s" data-loop="%s" data-autoplay="%s" style="width:%s;height:%s;"></div>',
+            $id,
+            $rest_url,
             $loop,
             $autoplay,
             $width,
