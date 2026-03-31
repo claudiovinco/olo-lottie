@@ -453,7 +453,7 @@ export default function useFabricCanvas({
             if (descendants.length > 0) canvas.requestRenderAll();
         });
 
-        // FK: when parent ROTATES, children orbit around parent's left/top + snap
+        // FK: when parent ROTATES, add dAngle to children + snap to joint
         canvas.on('object:rotating', (e) => {
             isUserInteractingRef.current = true;
             const obj = e.target;
@@ -464,22 +464,14 @@ export default function useFabricCanvas({
             obj._oloPrevAngle = obj.angle;
             if (dAngle === 0) return;
 
-            const pivotX = obj.left || 0;
-            const pivotY = obj.top || 0;
-            const rad = (dAngle * Math.PI) / 180;
-            const cos = Math.cos(rad);
-            const sin = Math.sin(rad);
-
+            // Process direct children first, then their children (breadth-first)
             const descendants = getDescendantObjects(obj._oloLayerId);
             descendants.forEach(child => {
                 const cObj = child.fabricObject;
-                const rx = cObj.left - pivotX;
-                const ry = cObj.top - pivotY;
-                cObj.left = pivotX + rx * cos - ry * sin;
-                cObj.top = pivotY + rx * sin + ry * cos;
+                // Inherit rotation
                 cObj.angle = (cObj.angle || 0) + dAngle;
                 cObj.setCoords();
-                // Snap to maintain joint connection
+                // Snap anchor to parent's anchor (maintains joint connection)
                 snapChildToParent(child);
                 cObj._oloPrevLeft = cObj.left;
                 cObj._oloPrevTop = cObj.top;
