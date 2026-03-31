@@ -295,6 +295,8 @@ export default function useFabricCanvas({
                 canvas.selection = true;
                 isDraggingAnchorRef.current = false;
                 isDraggingAnchorRef.layerId = null;
+                // Reset bone lengths when anchor is moved
+                canvas.getObjects().forEach(obj => { delete obj._oloBoneLength; });
             }
             // Reset FK prev tracking
             canvas.getObjects().forEach(obj => {
@@ -341,13 +343,61 @@ export default function useFabricCanvas({
             return result;
         }
 
+        // Store initial bone lengths when parent is set
+        function getBoneLength(childLayer) {
+            if (!childLayer.parentId) return null;
+            const parentLayer = layersRef.current.find(l => l.id === childLayer.parentId);
+            if (!parentLayer) return null;
+            const parentAnchor = getAnchorWorld(parentLayer);
+            const childAnchor = getAnchorWorld(childLayer);
+            const dx = childAnchor.x - parentAnchor.x;
+            const dy = childAnchor.y - parentAnchor.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
         // FK: propagate movement to descendants
         canvas.on('object:moving', (e) => {
             isUserInteractingRef.current = true;
             const obj = e.target;
             if (!obj || !obj._oloLayerId) return;
 
-            // Use _oloPrev* stored on the Fabric object itself (always available)
+            const movingLayer = layersRef.current.find(l => l.id === obj._oloLayerId);
+
+            // --- Bone constraint: if this object has a parent, enforce distance ---
+            if (movingLayer?.parentId) {
+                const parentLayer = layersRef.current.find(l => l.id === movingLayer.parentId);
+                if (parentLayer) {
+                    const parentAnchor = getAnchorWorld(parentLayer);
+                    const childAnchor = getAnchorWorld(movingLayer);
+
+                    // Get or compute initial bone length
+                    if (obj._oloBoneLength == null) {
+                        obj._oloBoneLength = getBoneLength(movingLayer) || 1;
+                    }
+                    const boneLen = obj._oloBoneLength;
+
+                    // Current distance
+                    const dx = childAnchor.x - parentAnchor.x;
+                    const dy = childAnchor.y - parentAnchor.y;
+                    const curDist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (curDist > 0.1) {
+                        // Project child to maintain bone length
+                        const scale = boneLen / curDist;
+                        const targetX = parentAnchor.x + dx * scale;
+                        const targetY = parentAnchor.y + dy * scale;
+
+                        // Apply correction to obj.left/top
+                        const corrX = targetX - childAnchor.x;
+                        const corrY = targetY - childAnchor.y;
+                        obj.left += corrX;
+                        obj.top += corrY;
+                        obj.setCoords();
+                    }
+                }
+            }
+
+            // --- Standard FK: propagate to descendants ---
             const prevLeft = obj._oloPrevLeft != null ? obj._oloPrevLeft : obj.left;
             const prevTop = obj._oloPrevTop != null ? obj._oloPrevTop : obj.top;
 
@@ -365,7 +415,6 @@ export default function useFabricCanvas({
                 cObj.left += dx;
                 cObj.top += dy;
                 cObj.setCoords();
-                // Cascade prev for nested children being dragged indirectly
                 cObj._oloPrevLeft = cObj.left;
                 cObj._oloPrevTop = cObj.top;
             });
