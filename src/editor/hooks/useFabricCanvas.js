@@ -295,8 +295,6 @@ export default function useFabricCanvas({
                 canvas.selection = true;
                 isDraggingAnchorRef.current = false;
                 isDraggingAnchorRef.layerId = null;
-                // Reset bone lengths when anchor is moved
-                canvas.getObjects().forEach(obj => { delete obj._oloBoneLength; });
             }
             // Reset FK prev tracking
             canvas.getObjects().forEach(obj => {
@@ -343,57 +341,12 @@ export default function useFabricCanvas({
             return result;
         }
 
-        // Compute anchor world position directly from left/top + rotation
-        // (doesn't rely on getCenterPoint cache - safe during drag)
-        function anchorWorldDirect(fabricObj, anchorX, anchorY) {
-            const rad = ((fabricObj.angle || 0) * Math.PI) / 180;
-            return {
-                x: (fabricObj.left || 0) + anchorX * Math.cos(rad) - anchorY * Math.sin(rad),
-                y: (fabricObj.top || 0) + anchorX * Math.sin(rad) + anchorY * Math.cos(rad),
-            };
-        }
-
         // FK: propagate movement to descendants
         canvas.on('object:moving', (e) => {
             isUserInteractingRef.current = true;
             const obj = e.target;
             if (!obj || !obj._oloLayerId) return;
 
-            const movingLayer = layersRef.current.find(l => l.id === obj._oloLayerId);
-
-            // --- Bone constraint: if this object has a parent, enforce fixed distance ---
-            if (movingLayer?.parentId) {
-                const parentLayer = layersRef.current.find(l => l.id === movingLayer.parentId);
-                if (parentLayer?.fabricObject) {
-                    const pObj = parentLayer.fabricObject;
-                    const pAnchor = anchorWorldDirect(pObj, parentLayer.anchorX || 0, parentLayer.anchorY || 0);
-                    const cAnchor = anchorWorldDirect(obj, movingLayer.anchorX || 0, movingLayer.anchorY || 0);
-
-                    // Compute bone length on first drag
-                    if (obj._oloBoneLength == null) {
-                        const dx0 = cAnchor.x - pAnchor.x;
-                        const dy0 = cAnchor.y - pAnchor.y;
-                        obj._oloBoneLength = Math.sqrt(dx0 * dx0 + dy0 * dy0) || 1;
-                    }
-
-                    const boneLen = obj._oloBoneLength;
-                    const dx = cAnchor.x - pAnchor.x;
-                    const dy = cAnchor.y - pAnchor.y;
-                    const curDist = Math.sqrt(dx * dx + dy * dy);
-
-                    if (curDist > 0.1 && Math.abs(curDist - boneLen) > 0.5) {
-                        // Project child anchor onto circle of radius boneLen
-                        const ratio = boneLen / curDist;
-                        const targetX = pAnchor.x + dx * ratio;
-                        const targetY = pAnchor.y + dy * ratio;
-                        obj.left += targetX - cAnchor.x;
-                        obj.top += targetY - cAnchor.y;
-                        obj.setCoords();
-                    }
-                }
-            }
-
-            // --- Standard FK: propagate to descendants ---
             const prevLeft = obj._oloPrevLeft != null ? obj._oloPrevLeft : obj.left;
             const prevTop = obj._oloPrevTop != null ? obj._oloPrevTop : obj.top;
 
@@ -418,7 +371,7 @@ export default function useFabricCanvas({
             if (descendants.length > 0) canvas.requestRenderAll();
         });
 
-        // FK: propagate rotation to descendants (rotate around parent's anchor)
+        // FK: propagate rotation to descendants (orbit around parent's left/top)
         canvas.on('object:rotating', (e) => {
             isUserInteractingRef.current = true;
             const obj = e.target;
@@ -431,22 +384,9 @@ export default function useFabricCanvas({
 
             if (dAngle === 0) return;
 
-            // Compute anchor at PREVIOUS angle and CURRENT angle
-            // This creates a rigid bone constraint: children orbit correctly
-            // even when the anchor itself moves due to rotation
-            const parentLayer = layersRef.current.find(l => l.id === obj._oloLayerId);
-            const anchorX = parentLayer?.anchorX || 0;
-            const anchorY = parentLayer?.anchorY || 0;
-
-            // Anchor at previous angle (where it WAS)
-            const prevRad = (prevAngle * Math.PI) / 180;
-            const prevPivotX = (obj.left || 0) + anchorX * Math.cos(prevRad) - anchorY * Math.sin(prevRad);
-            const prevPivotY = (obj.top || 0) + anchorX * Math.sin(prevRad) + anchorY * Math.cos(prevRad);
-
-            // Anchor at current angle (where it IS NOW)
-            const curRad = (obj.angle * Math.PI) / 180;
-            const curPivotX = (obj.left || 0) + anchorX * Math.cos(curRad) - anchorY * Math.sin(curRad);
-            const curPivotY = (obj.top || 0) + anchorX * Math.sin(curRad) + anchorY * Math.cos(curRad);
+            // Pivot = parent's left/top (Fabric rotation origin, always stable)
+            const pivotX = obj.left || 0;
+            const pivotY = obj.top || 0;
 
             const rad = (dAngle * Math.PI) / 180;
             const cos = Math.cos(rad);
@@ -455,26 +395,12 @@ export default function useFabricCanvas({
             const descendants = getDescendantObjects(obj._oloLayerId);
             descendants.forEach(child => {
                 const cObj = child.fabricObject;
-                const cAx = child.anchorX || 0;
-                const cAy = child.anchorY || 0;
+                const rx = cObj.left - pivotX;
+                const ry = cObj.top - pivotY;
 
-                // Get child's current anchor position
-                const childAnchor = anchorWorldDirect(cObj, cAx, cAy);
-
-                // Orbit child's anchor around parent's PREVIOUS anchor by dAngle
-                const rx = childAnchor.x - prevPivotX;
-                const ry = childAnchor.y - prevPivotY;
-                const targetX = curPivotX + rx * cos - ry * sin;
-                const targetY = curPivotY + rx * sin + ry * cos;
-
-                // Update child angle
-                const newAngle = (cObj.angle || 0) + dAngle;
-                const newRad = (newAngle * Math.PI) / 180;
-
-                // Compute left/top so child's anchor at new angle = target position
-                cObj.left = targetX - cAx * Math.cos(newRad) + cAy * Math.sin(newRad);
-                cObj.top = targetY - cAx * Math.sin(newRad) - cAy * Math.cos(newRad);
-                cObj.angle = newAngle;
+                cObj.left = pivotX + rx * cos - ry * sin;
+                cObj.top = pivotY + rx * sin + ry * cos;
+                cObj.angle = (cObj.angle || 0) + dAngle;
                 cObj.setCoords();
                 cObj._oloPrevLeft = cObj.left;
                 cObj._oloPrevTop = cObj.top;
