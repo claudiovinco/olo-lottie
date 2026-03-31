@@ -386,11 +386,22 @@ export default function useFabricCanvas({
 
             if (dAngle === 0) return;
 
-            // Pivot = parent's anchor point in world space (accounts for rotation)
+            // Compute anchor at PREVIOUS angle and CURRENT angle
+            // This creates a rigid bone constraint: children orbit correctly
+            // even when the anchor itself moves due to rotation
             const parentLayer = layersRef.current.find(l => l.id === obj._oloLayerId);
-            const pivot = getAnchorWorld(parentLayer || { fabricObject: obj, anchorX: 0, anchorY: 0 });
-            const pivotX = pivot.x;
-            const pivotY = pivot.y;
+            const anchorX = parentLayer?.anchorX || 0;
+            const anchorY = parentLayer?.anchorY || 0;
+
+            // Anchor at previous angle (where it WAS)
+            const prevRad = (prevAngle * Math.PI) / 180;
+            const prevPivotX = (obj.left || 0) + anchorX * Math.cos(prevRad) - anchorY * Math.sin(prevRad);
+            const prevPivotY = (obj.top || 0) + anchorX * Math.sin(prevRad) + anchorY * Math.cos(prevRad);
+
+            // Anchor at current angle (where it IS NOW)
+            const curRad = (obj.angle * Math.PI) / 180;
+            const curPivotX = (obj.left || 0) + anchorX * Math.cos(curRad) - anchorY * Math.sin(curRad);
+            const curPivotY = (obj.top || 0) + anchorX * Math.sin(curRad) + anchorY * Math.cos(curRad);
 
             const rad = (dAngle * Math.PI) / 180;
             const cos = Math.cos(rad);
@@ -399,11 +410,13 @@ export default function useFabricCanvas({
             const descendants = getDescendantObjects(obj._oloLayerId);
             descendants.forEach(child => {
                 const cObj = child.fabricObject;
-                const rx = cObj.left - pivotX;
-                const ry = cObj.top - pivotY;
+                // Offset from where the anchor WAS
+                const rx = cObj.left - prevPivotX;
+                const ry = cObj.top - prevPivotY;
 
-                cObj.left = pivotX + rx * cos - ry * sin;
-                cObj.top = pivotY + rx * sin + ry * cos;
+                // Rotate offset and position relative to where anchor IS NOW
+                cObj.left = curPivotX + rx * cos - ry * sin;
+                cObj.top = curPivotY + rx * sin + ry * cos;
                 cObj.angle = (cObj.angle || 0) + dAngle;
                 cObj.setCoords();
                 cObj._oloPrevLeft = cObj.left;
