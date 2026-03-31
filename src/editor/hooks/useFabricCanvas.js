@@ -296,11 +296,14 @@ export default function useFabricCanvas({
                 isDraggingAnchorRef.current = false;
                 isDraggingAnchorRef.layerId = null;
             }
-            // Reset FK prev tracking
+            // Reset FK tracking
             canvas.getObjects().forEach(obj => {
                 delete obj._oloPrevLeft;
                 delete obj._oloPrevTop;
                 delete obj._oloPrevAngle;
+                delete obj._oloBoneDist;
+                delete obj._oloBoneAngleOffset;
+                delete obj._oloBoneLen;
             });
         });
 
@@ -341,15 +344,92 @@ export default function useFabricCanvas({
             return result;
         }
 
-        // FK: propagate movement to descendants
+        // === RIGID BONE FK SYSTEM ===
+        // Model: child's anchor is PINNED to parent's anchor (shoulder-arm)
+        // Child can only ROTATE around the joint, never detach.
+
+        // Snap a child so its anchor is exactly at the parent's anchor
+        function snapChildToParent(childLayer) {
+            const cObj = childLayer.fabricObject;
+            if (!cObj || !childLayer.parentId) return;
+            const parentLayer = layersRef.current.find(l => l.id === childLayer.parentId);
+            if (!parentLayer?.fabricObject) return;
+
+            const pObj = parentLayer.fabricObject;
+            // Parent's anchor in world coords
+            const pRad = ((pObj.angle || 0) * Math.PI) / 180;
+            const pAx = parentLayer.anchorX || 0;
+            const pAy = parentLayer.anchorY || 0;
+            const jointX = (pObj.left || 0) + pAx * Math.cos(pRad) - pAy * Math.sin(pRad);
+            const jointY = (pObj.top || 0) + pAx * Math.sin(pRad) + pAy * Math.cos(pRad);
+
+            // Child's anchor in world coords
+            const cRad = ((cObj.angle || 0) * Math.PI) / 180;
+            const cAx = childLayer.anchorX || 0;
+            const cAy = childLayer.anchorY || 0;
+            const cAnchorX = (cObj.left || 0) + cAx * Math.cos(cRad) - cAy * Math.sin(cRad);
+            const cAnchorY = (cObj.top || 0) + cAx * Math.sin(cRad) + cAy * Math.cos(cRad);
+
+            // Snap: move child so its anchor lands on the joint
+            cObj.left += jointX - cAnchorX;
+            cObj.top += jointY - cAnchorY;
+            cObj.setCoords();
+        }
+
+        // FK: when parent MOVES, children follow (translation)
         canvas.on('object:moving', (e) => {
             isUserInteractingRef.current = true;
             const obj = e.target;
             if (!obj || !obj._oloLayerId) return;
+            const movingLayer = layersRef.current.find(l => l.id === obj._oloLayerId);
 
+            // If this object HAS a parent → constrain: convert drag to rotation only
+            if (movingLayer?.parentId) {
+                const parentLayer = layersRef.current.find(l => l.id === movingLayer.parentId);
+                if (parentLayer?.fabricObject) {
+                    const pObj = parentLayer.fabricObject;
+                    const pRad = ((pObj.angle || 0) * Math.PI) / 180;
+                    const pAx = parentLayer.anchorX || 0;
+                    const pAy = parentLayer.anchorY || 0;
+                    const jointX = (pObj.left || 0) + pAx * Math.cos(pRad) - pAy * Math.sin(pRad);
+                    const jointY = (pObj.top || 0) + pAx * Math.sin(pRad) + pAy * Math.cos(pRad);
+
+                    // Compute angle from joint to mouse position (using child's center as proxy)
+                    const mouseAngle = Math.atan2(obj.top - jointY, obj.left - jointX);
+
+                    // Compute where child's left/top should be at this angle, keeping distance fixed
+                    const cAx = movingLayer.anchorX || 0;
+                    const cAy = movingLayer.anchorY || 0;
+                    const cRad = ((obj.angle || 0) * Math.PI) / 180;
+
+                    // Distance from joint to child's left/top (fixed)
+                    if (obj._oloBoneDist == null) {
+                        const oldCAnchX = (obj._oloPrevLeft || obj.left) + cAx * Math.cos(cRad) - cAy * Math.sin(cRad);
+                        const oldCAnchY = (obj._oloPrevTop || obj.top) + cAx * Math.sin(cRad) + cAy * Math.cos(cRad);
+                        const ddx = (obj._oloPrevLeft || obj.left) - oldCAnchX;
+                        const ddy = (obj._oloPrevTop || obj.top) - oldCAnchY;
+                        obj._oloBoneDist = Math.sqrt(ddx * ddx + ddy * ddy);
+                        obj._oloBoneAngleOffset = Math.atan2(ddy, ddx);
+                        // Distance from joint to child anchor
+                        const jdx = oldCAnchX - jointX;
+                        const jdy = oldCAnchY - jointY;
+                        obj._oloBoneLen = Math.sqrt(jdx * jdx + jdy * jdy) || 1;
+                    }
+
+                    // Position child's anchor on circle around joint
+                    const newAnchorX = jointX + obj._oloBoneLen * Math.cos(mouseAngle);
+                    const newAnchorY = jointY + obj._oloBoneLen * Math.sin(mouseAngle);
+
+                    // Compute child left/top from anchor position
+                    obj.left = newAnchorX - cAx * Math.cos(cRad) + cAy * Math.sin(cRad);
+                    obj.top = newAnchorY - cAx * Math.sin(cRad) - cAy * Math.cos(cRad);
+                    obj.setCoords();
+                }
+            }
+
+            // Propagate translation to descendants
             const prevLeft = obj._oloPrevLeft != null ? obj._oloPrevLeft : obj.left;
             const prevTop = obj._oloPrevTop != null ? obj._oloPrevTop : obj.top;
-
             const dx = obj.left - prevLeft;
             const dy = obj.top - prevTop;
 
@@ -364,6 +444,8 @@ export default function useFabricCanvas({
                 cObj.left += dx;
                 cObj.top += dy;
                 cObj.setCoords();
+                // Re-snap grandchildren to maintain chain
+                snapChildToParent(child);
                 cObj._oloPrevLeft = cObj.left;
                 cObj._oloPrevTop = cObj.top;
             });
@@ -371,7 +453,7 @@ export default function useFabricCanvas({
             if (descendants.length > 0) canvas.requestRenderAll();
         });
 
-        // FK: propagate rotation to descendants (orbit around parent's left/top)
+        // FK: when parent ROTATES, children orbit around parent's left/top + snap
         canvas.on('object:rotating', (e) => {
             isUserInteractingRef.current = true;
             const obj = e.target;
@@ -379,15 +461,11 @@ export default function useFabricCanvas({
 
             const prevAngle = obj._oloPrevAngle != null ? obj._oloPrevAngle : obj.angle;
             const dAngle = obj.angle - prevAngle;
-
             obj._oloPrevAngle = obj.angle;
-
             if (dAngle === 0) return;
 
-            // Pivot = parent's left/top (Fabric rotation origin, always stable)
             const pivotX = obj.left || 0;
             const pivotY = obj.top || 0;
-
             const rad = (dAngle * Math.PI) / 180;
             const cos = Math.cos(rad);
             const sin = Math.sin(rad);
@@ -397,11 +475,12 @@ export default function useFabricCanvas({
                 const cObj = child.fabricObject;
                 const rx = cObj.left - pivotX;
                 const ry = cObj.top - pivotY;
-
                 cObj.left = pivotX + rx * cos - ry * sin;
                 cObj.top = pivotY + rx * sin + ry * cos;
                 cObj.angle = (cObj.angle || 0) + dAngle;
                 cObj.setCoords();
+                // Snap to maintain joint connection
+                snapChildToParent(child);
                 cObj._oloPrevLeft = cObj.left;
                 cObj._oloPrevTop = cObj.top;
                 cObj._oloPrevAngle = cObj.angle;
