@@ -386,10 +386,11 @@ export default function useFabricCanvas({
 
             if (dAngle === 0) return;
 
-            // Pivot = parent's anchor point in canvas space
+            // Pivot = parent's anchor point in world space (accounts for rotation)
             const parentLayer = layersRef.current.find(l => l.id === obj._oloLayerId);
-            const pivotX = obj.left + (parentLayer?.anchorX || 0);
-            const pivotY = obj.top + (parentLayer?.anchorY || 0);
+            const pivot = getAnchorWorld(parentLayer || { fabricObject: obj, anchorX: 0, anchorY: 0 });
+            const pivotX = pivot.x;
+            const pivotY = pivot.y;
 
             const rad = (dAngle * Math.PI) / 180;
             const cos = Math.cos(rad);
