@@ -343,16 +343,14 @@ export default function useFabricCanvas({
             return result;
         }
 
-        // Store initial bone lengths when parent is set
-        function getBoneLength(childLayer) {
-            if (!childLayer.parentId) return null;
-            const parentLayer = layersRef.current.find(l => l.id === childLayer.parentId);
-            if (!parentLayer) return null;
-            const parentAnchor = getAnchorWorld(parentLayer);
-            const childAnchor = getAnchorWorld(childLayer);
-            const dx = childAnchor.x - parentAnchor.x;
-            const dy = childAnchor.y - parentAnchor.y;
-            return Math.sqrt(dx * dx + dy * dy);
+        // Compute anchor world position directly from left/top + rotation
+        // (doesn't rely on getCenterPoint cache - safe during drag)
+        function anchorWorldDirect(fabricObj, anchorX, anchorY) {
+            const rad = ((fabricObj.angle || 0) * Math.PI) / 180;
+            return {
+                x: (fabricObj.left || 0) + anchorX * Math.cos(rad) - anchorY * Math.sin(rad),
+                y: (fabricObj.top || 0) + anchorX * Math.sin(rad) + anchorY * Math.cos(rad),
+            };
         }
 
         // FK: propagate movement to descendants
@@ -363,35 +361,33 @@ export default function useFabricCanvas({
 
             const movingLayer = layersRef.current.find(l => l.id === obj._oloLayerId);
 
-            // --- Bone constraint: if this object has a parent, enforce distance ---
+            // --- Bone constraint: if this object has a parent, enforce fixed distance ---
             if (movingLayer?.parentId) {
                 const parentLayer = layersRef.current.find(l => l.id === movingLayer.parentId);
-                if (parentLayer) {
-                    const parentAnchor = getAnchorWorld(parentLayer);
-                    const childAnchor = getAnchorWorld(movingLayer);
+                if (parentLayer?.fabricObject) {
+                    const pObj = parentLayer.fabricObject;
+                    const pAnchor = anchorWorldDirect(pObj, parentLayer.anchorX || 0, parentLayer.anchorY || 0);
+                    const cAnchor = anchorWorldDirect(obj, movingLayer.anchorX || 0, movingLayer.anchorY || 0);
 
-                    // Get or compute initial bone length
+                    // Compute bone length on first drag
                     if (obj._oloBoneLength == null) {
-                        obj._oloBoneLength = getBoneLength(movingLayer) || 1;
+                        const dx0 = cAnchor.x - pAnchor.x;
+                        const dy0 = cAnchor.y - pAnchor.y;
+                        obj._oloBoneLength = Math.sqrt(dx0 * dx0 + dy0 * dy0) || 1;
                     }
-                    const boneLen = obj._oloBoneLength;
 
-                    // Current distance
-                    const dx = childAnchor.x - parentAnchor.x;
-                    const dy = childAnchor.y - parentAnchor.y;
+                    const boneLen = obj._oloBoneLength;
+                    const dx = cAnchor.x - pAnchor.x;
+                    const dy = cAnchor.y - pAnchor.y;
                     const curDist = Math.sqrt(dx * dx + dy * dy);
 
-                    if (curDist > 0.1) {
-                        // Project child to maintain bone length
-                        const scale = boneLen / curDist;
-                        const targetX = parentAnchor.x + dx * scale;
-                        const targetY = parentAnchor.y + dy * scale;
-
-                        // Apply correction to obj.left/top
-                        const corrX = targetX - childAnchor.x;
-                        const corrY = targetY - childAnchor.y;
-                        obj.left += corrX;
-                        obj.top += corrY;
+                    if (curDist > 0.1 && Math.abs(curDist - boneLen) > 0.5) {
+                        // Project child anchor onto circle of radius boneLen
+                        const ratio = boneLen / curDist;
+                        const targetX = pAnchor.x + dx * ratio;
+                        const targetY = pAnchor.y + dy * ratio;
+                        obj.left += targetX - cAnchor.x;
+                        obj.top += targetY - cAnchor.y;
                         obj.setCoords();
                     }
                 }
