@@ -3,7 +3,7 @@
  * Plugin Name: Olo Lottie
  * Plugin URI: https://mosaic.clod.eu
  * Description: Visual Lottie animation editor for WordPress
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: Claudio
  * Text Domain: olo-lottie
  * Requires at least: 6.0
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('OLO_LOTTIE_VERSION', '1.2.0');
+define('OLO_LOTTIE_VERSION', '1.3.0');
 define('OLO_LOTTIE_PATH', plugin_dir_path(__FILE__));
 define('OLO_LOTTIE_URL', plugin_dir_url(__FILE__));
 
