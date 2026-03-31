@@ -455,14 +455,26 @@ export default function useFabricCanvas({
             const descendants = getDescendantObjects(obj._oloLayerId);
             descendants.forEach(child => {
                 const cObj = child.fabricObject;
-                // Offset from where the anchor WAS
-                const rx = cObj.left - prevPivotX;
-                const ry = cObj.top - prevPivotY;
+                const cAx = child.anchorX || 0;
+                const cAy = child.anchorY || 0;
 
-                // Rotate offset and position relative to where anchor IS NOW
-                cObj.left = curPivotX + rx * cos - ry * sin;
-                cObj.top = curPivotY + rx * sin + ry * cos;
-                cObj.angle = (cObj.angle || 0) + dAngle;
+                // Get child's current anchor position
+                const childAnchor = anchorWorldDirect(cObj, cAx, cAy);
+
+                // Orbit child's anchor around parent's PREVIOUS anchor by dAngle
+                const rx = childAnchor.x - prevPivotX;
+                const ry = childAnchor.y - prevPivotY;
+                const targetX = curPivotX + rx * cos - ry * sin;
+                const targetY = curPivotY + rx * sin + ry * cos;
+
+                // Update child angle
+                const newAngle = (cObj.angle || 0) + dAngle;
+                const newRad = (newAngle * Math.PI) / 180;
+
+                // Compute left/top so child's anchor at new angle = target position
+                cObj.left = targetX - cAx * Math.cos(newRad) + cAy * Math.sin(newRad);
+                cObj.top = targetY - cAx * Math.sin(newRad) - cAy * Math.cos(newRad);
+                cObj.angle = newAngle;
                 cObj.setCoords();
                 cObj._oloPrevLeft = cObj.left;
                 cObj._oloPrevTop = cObj.top;
